@@ -103,7 +103,7 @@ func (zeus *Zeus) Auth() (bool, error) {
 	return true, nil
 }
 
-func (zeus *Zeus) GetLogs(pattern, from, to string, offset, pagesize int) (
+func (zeus *Zeus) GetLogs(pattern, from, to string, offset, limit int) (
 	total int, logs Logs, err error) {
 	urlStr := zeus.apiServ + "logs/"
 	data := make(url.Values)
@@ -119,8 +119,8 @@ func (zeus *Zeus) GetLogs(pattern, from, to string, offset, pagesize int) (
 	if offset != 0 {
 		data.Add("offset", strconv.Itoa(offset))
 	}
-	if pagesize != 0 {
-		data.Add("pagesize", strconv.Itoa(pagesize))
+	if limit != 0 {
+		data.Add("limit", strconv.Itoa(limit))
 	}
 
 	body, status, err := zeus.request("get", urlStr, &data)
