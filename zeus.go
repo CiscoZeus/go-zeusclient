@@ -10,22 +10,14 @@ import (
 	"strings"
 )
 
-type Token struct {
-	Access_token  string `access_token`
-	Token_type    string `token_type`
-	Refresh_token string `refresh_token`
-	Expires_in    int    `expires_in`
-}
-
 type Log struct {
-	Timestamp string `json:"timestamp"`
+	Timestamp int64  `json:"timestamp,omitempty"`
 	Message   string `json:"message"`
 }
 
 type Logs []Log
 
 type Metric struct {
-	Name      string  `json:"name,omitempty"`
 	Value     float64 `json:"value"`
 	Timestamp int64   `json:"timestamp,omitempty"`
 }
@@ -33,8 +25,7 @@ type Metric struct {
 type Metrics []Metric
 
 type Zeus struct {
-	apiServ, username, password string
-	token                       *Token
+	apiServ, token string
 }
 
 type postResponse struct {
@@ -45,17 +36,19 @@ type postResponse struct {
 
 func (zeus *Zeus) request(method, urlStr string, data *url.Values) (
 	body []byte, status int, err error) {
+	if data == nil {
+		data = &url.Values{}
+	}
 	var req *http.Request
 	if method == "post" {
-		req, _ = http.NewRequest(method, urlStr, strings.NewReader(data.Encode()))
+		req, err = http.NewRequest(method, urlStr, strings.NewReader(data.Encode()))
 	} else {
-		req, _ = http.NewRequest(method, urlStr+"?"+data.Encode(), nil)
+		req, err = http.NewRequest(method, urlStr+"?"+data.Encode(), nil)
 	}
-
-	if method == "post" {
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if err != nil {
+		return []byte{}, 0, err
 	}
-	req.Header.Set("Authorization", "Bearer "+zeus.token.Access_token)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	client := new(http.Client)
 	resp, err := client.Do(req)
@@ -72,49 +65,21 @@ func (zeus *Zeus) request(method, urlStr string, data *url.Values) (
 	return
 }
 
-func (zeus *Zeus) Auth() (bool, error) {
-	u := zeus.apiServ + "login"
-	resp, err := http.PostForm(u,
-		url.Values{"username": {zeus.username}, "password": {zeus.password}})
-	if err != nil {
-		return false, err
-	}
-	body, err := ioutil.ReadAll(resp.Body)
-	defer resp.Body.Close()
-
-	dec := json.NewDecoder(strings.NewReader(string(body)))
-	var token Token
-	if err := dec.Decode(&token); err != nil {
-		return false, err
-	}
-
-	if resp.StatusCode != 200 {
-		var resp map[string]string
-		if err := json.Unmarshal(body, &resp); err != nil {
-			return false, err
-		}
-		if _, repre := resp["error"]; repre != false {
-			return false, errors.New(resp["error_description"])
-		}
-		return false, errors.New("Authentication error")
-	}
-
-	zeus.token = &token
-	return true, nil
-}
-
-func (zeus *Zeus) GetLogs(pattern, from, to string, offset, limit int) (
-	total int, logs Logs, err error) {
-	urlStr := zeus.apiServ + "logs/"
+func (zeus *Zeus) GetLogs(logType, pattern string, from, to int64, offset,
+	limit int) (total int, logs Logs, err error) {
+	urlStr := zeus.apiServ + "logs/" + zeus.token + "/"
 	data := make(url.Values)
+	if len(logType) > 0 {
+		data.Add("log_type", logType)
+	}
 	if len(pattern) > 0 {
 		data.Add("pattern", pattern)
 	}
-	if len(from) > 0 {
-		data.Add("from", from)
+	if from > 0 {
+		data.Add("from", strconv.FormatInt(from, 10))
 	}
-	if len(to) > 0 {
-		data.Add("to", to)
+	if to > 0 {
+		data.Add("to", strconv.FormatInt(to, 10))
 	}
 	if offset != 0 {
 		data.Add("offset", strconv.Itoa(offset))
@@ -139,12 +104,14 @@ func (zeus *Zeus) GetLogs(pattern, from, to string, offset, limit int) (
 		}
 		total = resp.Total
 		logs = resp.Result
+	} else if status == 400 {
+		return 0, Logs{}, errors.New("Bad request")
 	}
 	return
 }
 
-func (zeus *Zeus) PostLogs(tag string, logs Logs) (successful int, err error) {
-	urlStr := zeus.apiServ + "logs/" + tag + "/"
+func (zeus *Zeus) PostLogs(logType string, logs Logs) (successful int, err error) {
+	urlStr := zeus.apiServ + "logs/" + zeus.token + "/" + logType + "/"
 
 	jsonStr, err := json.Marshal(logs)
 	if err != nil {
@@ -169,8 +136,9 @@ func (zeus *Zeus) PostLogs(tag string, logs Logs) (successful int, err error) {
 	return
 }
 
-func (zeus *Zeus) PostMetrics(tag string, metrics Metrics) (successful int, err error) {
-	urlStr := zeus.apiServ + "metrics/" + tag + "/"
+func (zeus *Zeus) PostMetrics(metricName string, metrics Metrics) (
+	successful int, err error) {
+	urlStr := zeus.apiServ + "metrics/" + zeus.token + "/" + metricName + "/"
 
 	jsonStr, err := json.Marshal(metrics)
 	if err != nil {
@@ -194,8 +162,9 @@ func (zeus *Zeus) PostMetrics(tag string, metrics Metrics) (successful int, err 
 	return
 }
 
-func (zeus *Zeus) GetMetricNames(pattern string, limit int) (names []string, err error) {
-	urlStr := zeus.apiServ + "metric_names/"
+func (zeus *Zeus) GetMetricNames(pattern string, limit int) (names []string,
+	err error) {
+	urlStr := zeus.apiServ + "metrics/" + zeus.token + "/_names/"
 	data := make(url.Values)
 	if len(pattern) > 0 {
 		data.Add("pattern", pattern)
@@ -209,10 +178,7 @@ func (zeus *Zeus) GetMetricNames(pattern string, limit int) (names []string, err
 		return []string{}, err
 	}
 	if status == 200 {
-		//FIXME(kai) delete following 2 lines after api returns JSON
-		strBody := strings.Trim(string(body), "\"")
-		strBody = strings.Replace(strBody, "\\", "", -1)
-		if err := json.Unmarshal([]byte(strBody), &names); err != nil {
+		if err := json.Unmarshal(body, &names); err != nil {
 			return []string{}, err
 		}
 	}
@@ -220,24 +186,24 @@ func (zeus *Zeus) GetMetricNames(pattern string, limit int) (names []string, err
 }
 
 func (zeus *Zeus) GetMetricValues(pattern string, aggregator string,
-	groupInterval string, from string, to string, filterCondition string,
-	limit int) (multiMetrics map[string]Metrics, err error) {
-	urlStr := zeus.apiServ + "metric_values/"
+	groupInterval string, from, to int64, filterCondition string, limit int) (
+	multiMetrics map[string]Metrics, err error) {
+	urlStr := zeus.apiServ + "metrics/" + zeus.token + "/_values/"
 	data := make(url.Values)
 	if len(pattern) > 0 {
 		data.Add("pattern", pattern)
 	}
 	if len(aggregator) > 0 {
-		data.Add("aggregator", aggregator)
+		data.Add("aggregator_function", aggregator)
 	}
 	if len(groupInterval) > 0 {
 		data.Add("group_interval", groupInterval)
 	}
-	if len(from) > 0 {
-		data.Add("from", from)
+	if from > 0 {
+		data.Add("from", strconv.FormatInt(from, 10))
 	}
-	if len(to) > 0 {
-		data.Add("to", to)
+	if to > 0 {
+		data.Add("to", strconv.FormatInt(to, 10))
 	}
 	if len(filterCondition) > 0 {
 		data.Add("filter_condition", filterCondition)
@@ -256,11 +222,8 @@ func (zeus *Zeus) GetMetricValues(pattern string, aggregator string,
 			Name    string      `json:"name"`
 			Columns []string    `json:"columns"`
 		}
-		//FIXME(kai) delete following 2 lines after api returns JSON
-		strBody := strings.Trim(string(body), "\"")
-		strBody = strings.Replace(strBody, "\\", "", -1)
 		var resp []JsonMetric
-		if err := json.Unmarshal([]byte(strBody), &resp); err != nil {
+		if err := json.Unmarshal(body, &resp); err != nil {
 			return map[string]Metrics{}, err
 		}
 		multiMetrics = make(map[string]Metrics)
@@ -275,8 +238,8 @@ func (zeus *Zeus) GetMetricValues(pattern string, aggregator string,
 				}
 			}
 			if _, pres := multiMetrics[metric.Name+"_time"]; pres {
-				if _, pres := multiMetrics[metric.Name+"_Value"]; pres {
-					ms := multiMetrics[metric.Name+"_Value"]
+				if _, pres := multiMetrics[metric.Name+"_value"]; pres {
+					ms := multiMetrics[metric.Name+"_value"]
 					ts := multiMetrics[metric.Name+"_time"]
 					for idx, m := range ms {
 						m.Timestamp = int64(ts[idx].Value)

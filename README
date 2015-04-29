@@ -1,50 +1,42 @@
 PACKAGE DOCUMENTATION
 
 package zeus
-    import "gitlab.cisco.com/kazhang2/zeus_go"
+    import "gitlab.cisco.com/kazhang2/zeus-go"
 
 
 TYPES
 
 type Log struct {
-    Timestamp string `json:"timestamp"`
+    Timestamp int64  `json:"timestamp,omitempty"`
     Message   string `json:"message"`
 }
 
 type Logs []Log
 
 type Metric struct {
-    Name      string  `json:"name,omitempty"`
     Value     float64 `json:"value"`
     Timestamp int64   `json:"timestamp,omitempty"`
 }
 
 type Metrics []Metric
 
-type Token struct {
-    Access_token  string `access_token`
-    Token_type    string `token_type`
-    Refresh_token string `refresh_token`
-    Expires_in    int    `expires_in`
-}
-
 type Zeus struct {
     // contains filtered or unexported fields
 }
 
-func (zeus *Zeus) Auth() (bool, error)
+func (zeus *Zeus) GetLogs(logType, pattern string, from, to int64, offset,
+    limit int) (total int, logs Logs, err error)
 
-func (zeus *Zeus) GetLogs(pattern, from, to string, offset, pagesize int) (
-    total int, logs Logs, err error)
-
-func (zeus *Zeus) GetMetricNames(pattern string, limit int) (names []string, err error)
+func (zeus *Zeus) GetMetricNames(pattern string, limit int) (names []string,
+    err error)
 
 func (zeus *Zeus) GetMetricValues(pattern string, aggregator string,
-    groupInterval string, from string, to string, filterCondition string,
-    limit int) (multiMetrics map[string]Metrics, err error)
+    groupInterval string, from, to int64, filterCondition string, limit int) (
+    multiMetrics map[string]Metrics, err error)
 
-func (zeus *Zeus) PostLogs(tag string, logs Logs) (successful int, err error)
+func (zeus *Zeus) PostLogs(logType string, logs Logs) (successful int, err error)
 
-func (zeus *Zeus) PostMetrics(tag string, metrics Metrics) (successful int, err error)
+func (zeus *Zeus) PostMetrics(metricName string, metrics Metrics) (
+    successful int, err error)
 
 
