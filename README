@@ -24,17 +24,17 @@ type Zeus struct {
     // contains filtered or unexported fields
 }
 
-func (zeus *Zeus) GetLogs(logType, pattern string, from, to int64, offset,
+func (zeus *Zeus) GetLogs(logName, pattern string, from, to int64, offset,
     limit int) (total int, logs Logs, err error)
 
-func (zeus *Zeus) GetMetricNames(pattern string, limit int) (names []string,
+func (zeus *Zeus) GetMetricNames(metricName string, limit int) (names []string,
     err error)
 
-func (zeus *Zeus) GetMetricValues(pattern string, aggregator string,
+func (zeus *Zeus) GetMetricValues(metricName string, aggregator string,
     groupInterval string, from, to int64, filterCondition string, limit int) (
     multiMetrics map[string]Metrics, err error)
 
-func (zeus *Zeus) PostLogs(logType string, logs Logs) (successful int, err error)
+func (zeus *Zeus) PostLogs(logName string, logs Logs) (successful int, err error)
 
 func (zeus *Zeus) PostMetrics(metricName string, metrics Metrics) (
     successful int, err error)

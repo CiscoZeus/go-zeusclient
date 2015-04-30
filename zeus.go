@@ -34,24 +34,21 @@ type postResponse struct {
 	Error      string `json:"error"`
 }
 
+func buildUrl(urls ...string) string {
+	return strings.Join(urls, "/") + "/"
+}
+
 func (zeus *Zeus) request(method, urlStr string, data *url.Values) (
 	body []byte, status int, err error) {
 	if data == nil {
 		data = &url.Values{}
 	}
-	var req *http.Request
-	if method == "post" {
-		req, err = http.NewRequest(method, urlStr, strings.NewReader(data.Encode()))
+	var resp *http.Response
+	if method == "POST" {
+		resp, err = http.PostForm(urlStr, *data)
 	} else {
-		req, err = http.NewRequest(method, urlStr+"?"+data.Encode(), nil)
+		resp, err = http.Get(urlStr + "?" + data.Encode())
 	}
-	if err != nil {
-		return []byte{}, 0, err
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	client := new(http.Client)
-	resp, err := client.Do(req)
 	if err != nil {
 		return []byte{}, 0, err
 	}
@@ -65,12 +62,12 @@ func (zeus *Zeus) request(method, urlStr string, data *url.Values) (
 	return
 }
 
-func (zeus *Zeus) GetLogs(logType, pattern string, from, to int64, offset,
+func (zeus *Zeus) GetLogs(logName, pattern string, from, to int64, offset,
 	limit int) (total int, logs Logs, err error) {
-	urlStr := zeus.apiServ + "logs/" + zeus.token + "/"
+	urlStr := buildUrl(zeus.apiServ, "logs", zeus.token)
 	data := make(url.Values)
-	if len(logType) > 0 {
-		data.Add("log_type", logType)
+	if len(logName) > 0 {
+		data.Add("log_name", logName)
 	}
 	if len(pattern) > 0 {
 		data.Add("pattern", pattern)
@@ -88,7 +85,7 @@ func (zeus *Zeus) GetLogs(logType, pattern string, from, to int64, offset,
 		data.Add("limit", strconv.Itoa(limit))
 	}
 
-	body, status, err := zeus.request("get", urlStr, &data)
+	body, status, err := zeus.request("GET", urlStr, &data)
 	if err != nil {
 		return 0, Logs{}, err
 	}
@@ -110,8 +107,8 @@ func (zeus *Zeus) GetLogs(logType, pattern string, from, to int64, offset,
 	return
 }
 
-func (zeus *Zeus) PostLogs(logType string, logs Logs) (successful int, err error) {
-	urlStr := zeus.apiServ + "logs/" + zeus.token + "/" + logType + "/"
+func (zeus *Zeus) PostLogs(logName string, logs Logs) (successful int, err error) {
+	urlStr := buildUrl(zeus.apiServ, "logs", zeus.token, logName)
 
 	jsonStr, err := json.Marshal(logs)
 	if err != nil {
@@ -119,7 +116,7 @@ func (zeus *Zeus) PostLogs(logType string, logs Logs) (successful int, err error
 	}
 	data := url.Values{"logs": {string(jsonStr)}}
 
-	body, status, err := zeus.request("post", urlStr, &data)
+	body, status, err := zeus.request("POST", urlStr, &data)
 	if err != nil {
 		return 0, err
 	}
@@ -138,7 +135,7 @@ func (zeus *Zeus) PostLogs(logType string, logs Logs) (successful int, err error
 
 func (zeus *Zeus) PostMetrics(metricName string, metrics Metrics) (
 	successful int, err error) {
-	urlStr := zeus.apiServ + "metrics/" + zeus.token + "/" + metricName + "/"
+	urlStr := buildUrl(zeus.apiServ, "metrics", zeus.token, metricName)
 
 	jsonStr, err := json.Marshal(metrics)
 	if err != nil {
@@ -146,7 +143,7 @@ func (zeus *Zeus) PostMetrics(metricName string, metrics Metrics) (
 	}
 	data := url.Values{"metrics": {string(jsonStr)}}
 
-	body, status, err := zeus.request("post", urlStr, &data)
+	body, status, err := zeus.request("POST", urlStr, &data)
 	if err != nil {
 		return 0, err
 	}
@@ -162,18 +159,18 @@ func (zeus *Zeus) PostMetrics(metricName string, metrics Metrics) (
 	return
 }
 
-func (zeus *Zeus) GetMetricNames(pattern string, limit int) (names []string,
+func (zeus *Zeus) GetMetricNames(metricName string, limit int) (names []string,
 	err error) {
-	urlStr := zeus.apiServ + "metrics/" + zeus.token + "/_names/"
+	urlStr := buildUrl(zeus.apiServ, "metrics", zeus.token, "_names")
 	data := make(url.Values)
-	if len(pattern) > 0 {
-		data.Add("pattern", pattern)
+	if len(metricName) > 0 {
+		data.Add("metric_name", metricName)
 	}
 	if limit > 0 {
 		data.Add("limit", strconv.Itoa(limit))
 	}
 
-	body, status, err := zeus.request("get", urlStr, &data)
+	body, status, err := zeus.request("GET", urlStr, &data)
 	if err != nil {
 		return []string{}, err
 	}
@@ -185,13 +182,13 @@ func (zeus *Zeus) GetMetricNames(pattern string, limit int) (names []string,
 	return
 }
 
-func (zeus *Zeus) GetMetricValues(pattern string, aggregator string,
+func (zeus *Zeus) GetMetricValues(metricName string, aggregator string,
 	groupInterval string, from, to int64, filterCondition string, limit int) (
 	multiMetrics map[string]Metrics, err error) {
-	urlStr := zeus.apiServ + "metrics/" + zeus.token + "/_values/"
+	urlStr := buildUrl(zeus.apiServ, "metrics", zeus.token, "_values")
 	data := make(url.Values)
-	if len(pattern) > 0 {
-		data.Add("pattern", pattern)
+	if len(metricName) > 0 {
+		data.Add("metric_name", metricName)
 	}
 	if len(aggregator) > 0 {
 		data.Add("aggregator_function", aggregator)
@@ -212,7 +209,7 @@ func (zeus *Zeus) GetMetricValues(pattern string, aggregator string,
 		data.Add("limit", strconv.Itoa(limit))
 	}
 
-	body, status, err := zeus.request("get", urlStr, &data)
+	body, status, err := zeus.request("GET", urlStr, &data)
 	if err != nil {
 		return map[string]Metrics{}, err
 	}
@@ -241,8 +238,8 @@ func (zeus *Zeus) GetMetricValues(pattern string, aggregator string,
 				if _, pres := multiMetrics[metric.Name+"_value"]; pres {
 					ms := multiMetrics[metric.Name+"_value"]
 					ts := multiMetrics[metric.Name+"_time"]
-					for idx, m := range ms {
-						m.Timestamp = int64(ts[idx].Value)
+					for idx, _ := range ms {
+						ms[idx].Timestamp = int64(ts[idx].Value)
 					}
 				}
 				delete(multiMetrics, metric.Name+"_time")
