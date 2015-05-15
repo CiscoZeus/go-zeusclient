@@ -1,3 +1,18 @@
+// Copyright 2015 Cisco Systems, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// 	Unless required by applicable law or agreed to in writing, software
+// 	distributed under the License is distributed on an "AS IS" BASIS,
+// 	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// 	See the License for the specific language governing permissions and
+// 	limitations under the License.
+
+// Package zeusclient provides operations to post and retrieve logs/metrics.
 package zeus
 
 import (
@@ -10,20 +25,28 @@ import (
 	"strings"
 )
 
+// Log contains two properties of a log: timestamp of a event, and description
+// of the event.
 type Log struct {
 	Timestamp int64  `json:"timestamp,omitempty"`
 	Message   string `json:"message"`
 }
 
+// A collection of logs.
 type Logs []Log
 
+// Metric contains two properties of a metric: timestamp of a metric, and
+// value of the metric.
 type Metric struct {
 	Value     float64 `json:"value"`
 	Timestamp int64   `json:"timestamp,omitempty"`
 }
 
+// A collection of metrics.
 type Metrics []Metric
 
+// Zeus implements functions to send/receive log, send/receive metrics.
+// Constructing Zeus requires URL of Zeus rest api and user token.
 type Zeus struct {
 	apiServ, token string
 }
@@ -62,6 +85,11 @@ func (zeus *Zeus) request(method, urlStr string, data *url.Values) (
 	return
 }
 
+// GetLogs returns a list of logs that math given constrains. logName is the
+// name(or category) of the log. Pattern is a expression to match log
+// message field. From and to are the starting and ending timestamp of logs
+// in unix time(in seconds). Offest and limit control the pagination of the
+// results.
 func (zeus *Zeus) GetLogs(logName, pattern string, from, to int64, offset,
 	limit int) (total int, logs Logs, err error) {
 	urlStr := buildUrl(zeus.apiServ, "logs", zeus.token)
@@ -107,6 +135,8 @@ func (zeus *Zeus) GetLogs(logName, pattern string, from, to int64, offset,
 	return
 }
 
+// PostLogs sends a list of logs under given log name. It returns number of
+// successfully sent logs or an error.
 func (zeus *Zeus) PostLogs(logName string, logs Logs) (successful int, err error) {
 	urlStr := buildUrl(zeus.apiServ, "logs", zeus.token, logName)
 
@@ -133,6 +163,7 @@ func (zeus *Zeus) PostLogs(logName string, logs Logs) (successful int, err error
 	return
 }
 
+// PostMetrics sends a list of metrics under the given metricName.
 func (zeus *Zeus) PostMetrics(metricName string, metrics Metrics) (
 	successful int, err error) {
 	urlStr := buildUrl(zeus.apiServ, "metrics", zeus.token, metricName)
@@ -159,6 +190,8 @@ func (zeus *Zeus) PostMetrics(metricName string, metrics Metrics) (
 	return
 }
 
+// GetMetricNames returns less than limit of metric names that match regular
+// expression metricName.
 func (zeus *Zeus) GetMetricNames(metricName string, limit int) (names []string,
 	err error) {
 	urlStr := buildUrl(zeus.apiServ, "metrics", zeus.token, "_names")
@@ -182,6 +215,11 @@ func (zeus *Zeus) GetMetricNames(metricName string, limit int) (names []string,
 	return
 }
 
+// GetMetricValues returns less than limit of metric values under the name
+// metricName, The returned values' timestamp greater than from and smaller
+// than to. Values can be aggreated by a function(count, min, max, sum, mean,
+// mode, median). Values can also be gouped by a group_interval or filtered by
+// filter_condition(value > 0).
 func (zeus *Zeus) GetMetricValues(metricName string, aggregator string,
 	groupInterval string, from, to int64, filterCondition string, limit int) (
 	multiMetrics map[string]Metrics, err error) {
