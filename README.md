@@ -1,5 +1,5 @@
 # Zeus Go Client
-[![Build Status](https://travis-ci.org/CiscoZeus/go-zeusclient.svg)](https://travis-ci.org/CiscoZeus/go-zeusclient) [![Godoc](http://img.shields.io/badge/godoc-reference-blue.svg?style=flat)](https://godoc.org/github.com/CiscoZeus/go-zeusclient) [![license](https://img.shields.io/hexpm/l/plug.svg)](http://www.apache.org/licenses/LICENSE-2.0)
+[![Build Status](https://travis-ci.org/CiscoZeus/go-zeusclient.svg)](https://travis-ci.org/CiscoZeus/go-zeusclient) [![Coverage Status](https://coveralls.io/repos/CiscoZeus/go-zeusclient/badge.svg)](https://coveralls.io/r/CiscoZeus/go-zeusclient) [![Godoc](http://img.shields.io/badge/godoc-reference-blue.svg?style=flat)](https://godoc.org/github.com/CiscoZeus/go-zeusclient) [![license](https://img.shields.io/hexpm/l/plug.svg)](http://www.apache.org/licenses/LICENSE-2.0)
 
 Go client for CiscoZeus.io. it allows a user to send and receive data to and from Zeus.
 
@@ -27,7 +27,7 @@ total, logs, err := zeus.GetLogs("apache", "GET", 1431711563, 1431711863, 0, 10)
 
 * Send a metric
 ```go
-metrics := Metrics{{Value: 123}}
+metrics := Metrics{{Timestamp: time.Now().Unix(), Value: 123}}
 successful, err := zeus.PostMetrics("Hello_metric", metrics)
 ```
 
