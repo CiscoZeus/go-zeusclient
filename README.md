@@ -7,37 +7,57 @@ Go client for CiscoZeus.io. it allows a user to send and receive data to and fro
 * Send logs and metrics to Zeus
 * Query both logs and metrics.
 
+## Get Code
+```
+go get github.com/CiscoZeus/go-zeusclient
+```
+
 ## Examples
 * Generate a Zeus client object:
 ```go
-zeus := &Zeus{apiServ: REST_API_URL, token: "goZeus"}
+zeus := &Zeus{ApiServ: "http://api.ciscozeus.io", Token: "{Your token}"}
 ```
 
 * Send a log
 ```go
-logs := make([]Log, 1)
-logs[0] = Log{Timestamp: time.Now().Unix(), Message: "Message from Go"}
-successful, err := zeus.PostLogs("Hello_log", logs)
+logs := LogList{
+    Name: "syslog",
+    Logs: []Log{
+        Log{"foo": "bar", "tar": "woo"},
+    },
+}
+suc, err := zeus.PostLogs(logs)
 ```
 
 * Retrieve logs
 ```go
-total, logs, err := zeus.GetLogs("apache", "GET", 1431711563, 1431711863, 0, 10)
+total, logs, err := zeus.GetLogs("syslog", "", "", 0, 0, 0, 0)
 ```
 
 * Send a metric
 ```go
-metrics := Metrics{{Timestamp: time.Now().Unix(), Value: 123}}
-successful, err := zeus.PostMetrics("Hello_metric", metrics)
+metrics := MetricList{
+    Name:    "sample",
+    Columns: []string{"col1", "col2", "col3"},
+    Metrics: []Metric{
+        Metric{
+            Timestamp: float64(time.Now().Unix()),
+            Point:     []float64{1.0, 2.0, 3.0},
+        },
+    },
+}
+suc, err := zeus.PostMetrics(metrics)
 ```
 
 * Query metric name
 ```go
-names, err := zeus.GetMetricNames("Hello_metric", 1024)
+name, err := zeus.GetMetricNames("sample*", 0, 0)
 ```
 
 * Query metric values
 ```go
-timestamp := int64(1430355869000)
-multiMetrics, err := zeus.GetMetricValues("Hello_metric", "", "", timestamp-int64(10*1000), timestamp, "value>10", 1024)
+timestamp := 1430355869.123
+rMetrics, err := zeus.GetMetricValues("sample", "", "", timestamp-10.0, timestamp, "col2>1", 0, 1024)
 ```
+
+For more examples, please refer to sample/sample.go
