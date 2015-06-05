@@ -1,4 +1,7 @@
 # Zeus Go Client
+
+![Alt text](https://raw.githubusercontent.com/CiscoZeus/go-zeusclient/master/docs/images/zeus_logo.png "Zeus Logo")
+
 [![Build Status](https://travis-ci.org/CiscoZeus/go-zeusclient.svg)](https://travis-ci.org/CiscoZeus/go-zeusclient) [![Coverage Status](https://coveralls.io/repos/CiscoZeus/go-zeusclient/badge.svg)](https://coveralls.io/r/CiscoZeus/go-zeusclient) [![Godoc](http://img.shields.io/badge/godoc-reference-blue.svg?style=flat)](https://godoc.org/github.com/CiscoZeus/go-zeusclient) [![license](https://img.shields.io/hexpm/l/plug.svg)](http://www.apache.org/licenses/LICENSE-2.0)
 
 Go client for CiscoZeus.io. it allows a user to send and receive data to and from Zeus.
