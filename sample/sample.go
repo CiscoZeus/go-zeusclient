@@ -77,7 +77,7 @@ func main() {
 	}
 	fmt.Printf("found log name: %v\n", name)
 
-	rMetrics, err := zeus.GetMetricValues(metrics.Name, "", "", 0, 0, "", 0, 0)
+	rMetrics, err := zeus.GetMetricValues(metrics.Name, "", "", "", 0, 0, "", 0, 0)
 	if err != nil {
 		panic("failed to retrieve metric values")
 	}

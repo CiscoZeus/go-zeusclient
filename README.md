@@ -57,7 +57,7 @@ name, err := zeus.GetMetricNames("sample*", 0, 0)
 * Query metric values
 ```go
 timestamp := 1430355869.123
-rMetrics, err := zeus.GetMetricValues("sample", "", "", timestamp-10.0, timestamp, "col2>1", 0, 1024)
+rMetrics, err := zeus.GetMetricValues("sample", "", "", "", timestamp-10.0, timestamp, "col2>1", 0, 1024)
 ```
 
 For more examples, please refer to sample/sample.go
