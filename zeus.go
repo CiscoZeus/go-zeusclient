@@ -64,17 +64,19 @@ func (lst MetricList) MarshalJSON() ([]byte, error) {
 		for idx, col := range lst.Columns {
 			p[col] = m.Point[idx]
 		}
-		if m.Timestamp != 0 {
-			p["timestamp"] = m.Timestamp
-		}
 		j, err := json.Marshal(p)
 		if err != nil {
 			return []byte{}, err
 		}
+		jstr := `{"point":` + string(j)
+		if m.Timestamp != 0 {
+			jstr += `, "timestamp":` + strconv.FormatFloat(m.Timestamp, 'f', 3, 64)
+		}
+		jstr += "}"
 		if i != 0 {
 			js = append(js, byte(','))
 		}
-		js = append(js, j...)
+		js = append(js, []byte(jstr)...)
 	}
 	js = append(js, byte(']'))
 	return js, nil
@@ -272,12 +274,15 @@ func (zeus *Zeus) PostMetrics(metrics MetricList) (
 
 // GetMetricNames returns less than limit of metric names that match regular
 // expression metricName.
-func (zeus *Zeus) GetMetricNames(metricName string, limit int) (names []string,
-	err error) {
+func (zeus *Zeus) GetMetricNames(metricName string, offset, limit int) (
+	names []string, err error) {
 	urlStr := buildUrl(zeus.ApiServ, "metrics", zeus.Token, "_names")
 	data := make(url.Values)
 	if len(metricName) > 0 {
 		data.Add("metric_name", metricName)
+	}
+	if offset > 0 {
+		data.Add("offset", strconv.Itoa(offset))
 	}
 	if limit > 0 {
 		data.Add("limit", strconv.Itoa(limit))
@@ -302,8 +307,8 @@ func (zeus *Zeus) GetMetricNames(metricName string, limit int) (names []string,
 // filter_condition(value > 0), if value for one field is missing, it'll be
 // set to 0.
 func (zeus *Zeus) GetMetricValues(metricName string, aggregator string,
-	groupInterval string, from, to float64, filterCondition string, limit int) (
-	metrics MetricList, err error) {
+	groupInterval string, from, to float64, filterCondition string, offset,
+	limit int) (metrics MetricList, err error) {
 	urlStr := buildUrl(zeus.ApiServ, "metrics", zeus.Token, "_values")
 	data := make(url.Values)
 	if len(metricName) > 0 {
@@ -323,6 +328,9 @@ func (zeus *Zeus) GetMetricValues(metricName string, aggregator string,
 	}
 	if len(filterCondition) > 0 {
 		data.Add("filter_condition", filterCondition)
+	}
+	if offset > 0 {
+		data.Add("offset", strconv.Itoa(limit))
 	}
 	if limit > 0 {
 		data.Add("limit", strconv.Itoa(limit))

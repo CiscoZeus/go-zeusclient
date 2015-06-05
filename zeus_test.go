@@ -134,12 +134,15 @@ func TestPostMetrics(t *testing.T) {
 func TestGetMetricNames(t *testing.T) {
 	metricName := randString(5)
 
-	param := url.Values{"metric_name": {metricName}, "limit": {"1024"}}
+	param := url.Values{
+		"metric_name": {metricName},
+		"offset":      {"1"},
+		"limit":       {"1024"}}
 	retBody := `["Harry", "Potter"]`
 	server, zeus := mock("/metrics/goZeus/_names/", &param, 200, retBody)
 	defer server.Close()
 
-	names, err := zeus.GetMetricNames(metricName, 1024)
+	names, err := zeus.GetMetricNames(metricName, 1, 1024)
 	if err != nil {
 		t.Error("failed to get metrics' name:", err)
 	}
@@ -170,7 +173,7 @@ func TestGetMetricValues(t *testing.T) {
 	server, zeus := mock("/metrics/goZeus/_values/", &param, 200, retBody)
 	defer server.Close()
 
-	metrics, err := zeus.GetMetricValues(metricName, "", "", timestamp-10.0, timestamp, "value>10", 1024)
+	metrics, err := zeus.GetMetricValues(metricName, "", "", timestamp-10.0, timestamp, "value>10", 0, 1024)
 	if err != nil {
 		t.Error("failed to get metric values:", err)
 	}
