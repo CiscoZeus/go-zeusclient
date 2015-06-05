@@ -73,7 +73,12 @@ func TestPostLogs(t *testing.T) {
 	server, zeus := mock("/logs/goZeus/"+logName+"/", &param, 200, `{"successful": 1}`)
 	defer server.Close()
 
-	successful, err := zeus.PostLogs(logs)
+	successful, err := zeus.PostLogs(LogList{})
+	if err == nil {
+		t.Error("should fail on empty log")
+	}
+
+	successful, err = zeus.PostLogs(logs)
 	if err != nil {
 		t.Error("failed to post logs:", err)
 	}
@@ -99,7 +104,12 @@ func TestGetLogs(t *testing.T) {
 	server, zeus := mock("/logs/goZeus/", &param, 200, retBody)
 	defer server.Close()
 
-	total, logs, err := zeus.GetLogs(logName, "message", pattern, timestamp,
+	total, logs, err := zeus.GetLogs("", "", "", 0, 0, 0, 0)
+	if err == nil {
+		t.Error("test should failed because of missing parameters")
+	}
+
+	total, logs, err = zeus.GetLogs(logName, "message", pattern, timestamp,
 		timestamp+10, 0, 10)
 
 	if total != 1 || logs.Logs[0]["message"] != pattern {
@@ -125,7 +135,12 @@ func TestPostMetrics(t *testing.T) {
 	server, zeus := mock("/metrics/goZeus/"+metricName+"/", &param, 200, retBody)
 	defer server.Close()
 
-	successful, err := zeus.PostMetrics(metrics)
+	successful, err := zeus.PostMetrics(MetricList{})
+	if err == nil {
+		t.Error("should fail on empty metrics")
+	}
+
+	successful, err = zeus.PostMetrics(metrics)
 	if err != nil || successful != 1 {
 		t.Errorf("failed to post metrics, %d successful", successful)
 	}
@@ -206,7 +221,11 @@ func TestDeleteMetrics(t *testing.T) {
 	server, zeus := mock("/metrics/goZeus/"+metricName+"/", &param, 200, retBody)
 	defer server.Close()
 
-	successful, err := zeus.DeleteMetrics(metricName)
+	successful, err := zeus.DeleteMetrics("")
+	if successful != false || err == nil {
+		t.Error("should fail on empty metricName")
+	}
+	successful, err = zeus.DeleteMetrics(metricName)
 
 	if err != nil || successful != true {
 		t.Error("failed to delete on series")
