@@ -64,7 +64,7 @@ For more examples, please refer to sample/sample.go
 
 ## Contributing
 
-1. Fork it ( https://github.com/CiscoZeus/zeusclient/fork )
+1. Fork it ( https://github.com/CiscoZeus/go-zeusclient/fork )
 2. Create your feature branch (`git checkout -b my-new-feature`)
 3. Commit your changes (`git commit -am 'Add some feature'`)
 4. Push to the branch (`git push origin my-new-feature`)
