@@ -50,7 +50,7 @@ func mock(expPath string, expParam *url.Values, code int, retBody string) (
 		}))
 
 	// Initialize a Zeus client
-	zeus := &Zeus{apiServ: server.URL, token: "goZeus"}
+	zeus := &Zeus{ApiServ: server.URL, Token: "goZeus"}
 	return server, zeus
 }
 
@@ -65,15 +65,15 @@ func randString(n int) string {
 
 func TestPostLogs(t *testing.T) {
 	logName := randString(5)
-	logs := make([]Log, 1)
-	logs[0] = Log{Timestamp: time.Now().Unix(), Message: "Message from Go"}
+	log := Log{"timestamp": time.Now().Unix(), "message": "Message from Go"}
+	logs := LogList{Name: logName, Logs: []Log{log}}
 
 	jsonStr, _ := json.Marshal(logs)
 	param := url.Values{"logs": {string(jsonStr)}}
 	server, zeus := mock("/logs/goZeus/"+logName+"/", &param, 200, `{"successful": 1}`)
 	defer server.Close()
 
-	successful, err := zeus.PostLogs(logName, logs)
+	successful, err := zeus.PostLogs(logs)
 	if err != nil {
 		t.Error("failed to post logs:", err)
 	}
@@ -83,32 +83,41 @@ func TestPostLogs(t *testing.T) {
 }
 
 func TestGetLogs(t *testing.T) {
-	message := randString(10)
+	pattern := randString(10)
 	timestamp := time.Now().Unix()
 	logName := randString(5)
 
 	param := url.Values{
-		"log_name": {logName},
-		"pattern":  {message},
-		"from":     {strconv.FormatInt(timestamp, 10)},
-		"to":       {strconv.FormatInt(timestamp+10, 10)},
-		"limit":    {"10"}}
+		"log_name":       {logName},
+		"attribute_name": {"message"},
+		"pattern":        {pattern},
+		"from":           {strconv.FormatInt(timestamp, 10)},
+		"to":             {strconv.FormatInt(timestamp+10, 10)},
+		"limit":          {"10"}}
 	retBody := fmt.Sprintf("{\"total\": 1,\"result\": [{\"timestamp\": %d, \"message\":\"%s\"}]}",
-		timestamp, message)
+		timestamp, pattern)
 	server, zeus := mock("/logs/goZeus/", &param, 200, retBody)
 	defer server.Close()
 
-	total, logs, err := zeus.GetLogs(logName, message, timestamp, timestamp+10, 0, 10)
+	total, logs, err := zeus.GetLogs(logName, "message", pattern, timestamp,
+		timestamp+10, 0, 10)
 
-	if total != 1 || logs[0].Message != message {
+	if total != 1 || logs.Logs[0]["message"] != pattern {
 		t.Error("failed to retrieve logs:", err)
 	}
 }
 
 func TestPostMetrics(t *testing.T) {
 	metricName := randString(5)
-	value := rand.Float64()
-	metrics := Metrics{{Value: value}}
+	metrics := MetricList{
+		Name:    metricName,
+		Columns: []string{"col1", "col2", "col3"},
+		Metrics: []Metric{
+			Metric{
+				Point: []float64{1.1, 2.2, 3.3},
+			},
+		},
+	}
 	jsonStr, _ := json.Marshal(metrics)
 
 	param := url.Values{"metrics": {string(jsonStr)}}
@@ -116,7 +125,7 @@ func TestPostMetrics(t *testing.T) {
 	server, zeus := mock("/metrics/goZeus/"+metricName+"/", &param, 200, retBody)
 	defer server.Close()
 
-	successful, err := zeus.PostMetrics(metricName, metrics)
+	successful, err := zeus.PostMetrics(metrics)
 	if err != nil || successful != 1 {
 		t.Errorf("failed to post metrics, %d successful", successful)
 	}
@@ -149,27 +158,51 @@ func TestGetMetricNames(t *testing.T) {
 
 func TestGetMetricValues(t *testing.T) {
 	metricName := "Jon.Snow"
-	timestamp := int64(1430355869000)
+	timestamp := float64(1430355869.123)
 
 	param := url.Values{
 		"metric_name":      {metricName},
-		"from":             {strconv.FormatInt(timestamp-int64(10*1000), 10)},
-		"to":               {strconv.FormatInt(timestamp, 10)},
+		"from":             {strconv.FormatFloat(timestamp-10.0, 'f', 3, 64)},
+		"to":               {strconv.FormatFloat(timestamp, 'f', 3, 64)},
 		"filter_condition": {"value>10"},
 		"limit":            {"1024"}}
-	retBody := `[{"points": [[1430355865000,144740003,58.8]],"name": "Jon.Snow","columns": ["time","sequence_number","value"]}]`
+	retBody := `[{"points": [[1430355869.123,144740003,20.0]],"name": "Jon.Snow","columns": ["time","sequence_number","age"]}]`
 	server, zeus := mock("/metrics/goZeus/_values/", &param, 200, retBody)
 	defer server.Close()
 
-	multiMetrics, err := zeus.GetMetricValues(metricName, "", "", timestamp-int64(10*1000), timestamp, "value>10", 1024)
+	metrics, err := zeus.GetMetricValues(metricName, "", "", timestamp-10.0, timestamp, "value>10", 1024)
 	if err != nil {
 		t.Error("failed to get metric values:", err)
 	}
-	expMetric := Metric{Timestamp: 1430355865000, Value: 58.8}
+	expMetric := MetricList{
+		Name:    metricName,
+		Columns: []string{"sequence_number", "age"},
+		Metrics: []Metric{
+			Metric{Timestamp: 1430355869.123, Point: []float64{144740003, 20}},
+		},
+	}
 	// Two colume: sequence_number and value
-	if len(multiMetrics) != 2 ||
-		len(multiMetrics[metricName+"_value"]) != 1 ||
-		multiMetrics[metricName+"_value"][0] != expMetric {
-		t.Errorf("failed to retrieve metric values, expect %#v, got %#v", expMetric, multiMetrics)
+	if expMetric.Name != metrics.Name ||
+		len(expMetric.Columns) != len(metrics.Columns) ||
+		expMetric.Columns[0] != metrics.Columns[0] ||
+		expMetric.Columns[1] != metrics.Columns[1] ||
+		expMetric.Metrics[0].Timestamp != metrics.Metrics[0].Timestamp ||
+		expMetric.Metrics[0].Point[0] != metrics.Metrics[0].Point[0] ||
+		expMetric.Metrics[0].Point[1] != metrics.Metrics[0].Point[1] {
+		t.Errorf("failed to retrieve metric values, expect %#v, got %#v", expMetric, metrics)
+	}
+}
+
+func TestDeleteMetrics(t *testing.T) {
+	metricName := randString(5)
+	param := url.Values{}
+	retBody := `["Metric deletion successful"]`
+	server, zeus := mock("/metrics/goZeus/"+metricName+"/", &param, 200, retBody)
+	defer server.Close()
+
+	successful, err := zeus.DeleteMetrics(metricName)
+
+	if err != nil || successful != true {
+		t.Error("failed to delete on series")
 	}
 }
