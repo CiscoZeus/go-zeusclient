@@ -164,16 +164,20 @@ func (zeus *Zeus) request(method, urlStr string, data *url.Values) (
 }
 
 // GetLogs returns a list of logs that math given constrains. logName is the
-// name(or category) of the log. Pattern is a expression to match log
-// message field. From and to are the starting and ending timestamp of logs
-// in unix time(in seconds). Offest and limit control the pagination of the
-// results.
+// name(or category) of the log. Pattern is a expression to match given log
+// field. From and to are the starting and ending timestamp of logs in unix
+// time(in seconds). Offest and limit control the pagination of the results.
+// If the returned  total larger than the length of return log list, don't
+// worry, limit controls the up limit of number of logs returned. Please
+// use offset to get the rest logs.
 func (zeus *Zeus) GetLogs(logName, field, pattern string, from, to int64,
 	offset, limit int) (total int, logs LogList, err error) {
 	urlStr := buildUrl(zeus.ApiServ, "logs", zeus.Token)
 	data := make(url.Values)
 	if len(logName) > 0 {
 		data.Add("log_name", logName)
+	} else {
+		return 0, LogList{}, errors.New("logName is required")
 	}
 	if len(field) > 0 {
 		data.Add("attribute_name", field)
@@ -220,6 +224,9 @@ func (zeus *Zeus) GetLogs(logName, field, pattern string, from, to int64,
 // PostLogs sends a list of logs under given log name. It returns number of
 // successfully sent logs or an error.
 func (zeus *Zeus) PostLogs(logs LogList) (successful int, err error) {
+	if len(logs.Name) == 0 || len(logs.Logs) == 0 {
+		return 0, errors.New("logs is empty")
+	}
 	urlStr := buildUrl(zeus.ApiServ, "logs", zeus.Token, logs.Name)
 
 	jsonStr, err := json.Marshal(logs)
@@ -248,6 +255,11 @@ func (zeus *Zeus) PostLogs(logs LogList) (successful int, err error) {
 // PostMetric sends a list of points under the given metricName.
 func (zeus *Zeus) PostMetrics(metrics MetricList) (
 	successful int, err error) {
+	if len(metrics.Name) == 0 ||
+		len(metrics.Columns) == 0 ||
+		len(metrics.Metrics) == 0 {
+		return 0, errors.New("metrics is empty")
+	}
 	urlStr := buildUrl(zeus.ApiServ, "metrics", zeus.Token, metrics.Name)
 
 	jsonStr, err := json.Marshal(metrics)
