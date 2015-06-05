@@ -168,8 +168,8 @@ func (zeus *Zeus) request(method, urlStr string, data *url.Values) (
 // field. From and to are the starting and ending timestamp of logs in unix
 // time(in seconds). Offest and limit control the pagination of the results.
 // If the returned  total larger than the length of return log list, don't
-// worry, limit controls the up limit of number of logs returned. Please
-// use offset to get the rest logs.
+// worry, limit(10 by default) controls the up limit of number of logs
+// returned. Please use offset and limit to get the rest logs.
 func (zeus *Zeus) GetLogs(logName, field, pattern string, from, to int64,
 	offset, limit int) (total int, logs LogList, err error) {
 	urlStr := buildUrl(zeus.ApiServ, "logs", zeus.Token)
