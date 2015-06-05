@@ -307,8 +307,8 @@ func (zeus *Zeus) GetMetricNames(metricName string, offset, limit int) (
 // filter_condition(value > 0), if value for one field is missing, it'll be
 // set to 0.
 func (zeus *Zeus) GetMetricValues(metricName string, aggregator string,
-	groupInterval string, from, to float64, filterCondition string, offset,
-	limit int) (metrics MetricList, err error) {
+	aggregatorCol, groupInterval string, from, to float64, filterCondition string,
+	offset, limit int) (metrics MetricList, err error) {
 	urlStr := buildUrl(zeus.ApiServ, "metrics", zeus.Token, "_values")
 	data := make(url.Values)
 	if len(metricName) > 0 {
@@ -316,6 +316,9 @@ func (zeus *Zeus) GetMetricValues(metricName string, aggregator string,
 	}
 	if len(aggregator) > 0 {
 		data.Add("aggregator_function", aggregator)
+	}
+	if len(aggregatorCol) > 0 {
+		data.Add("aggregator_column", aggregatorCol)
 	}
 	if len(groupInterval) > 0 {
 		data.Add("group_interval", groupInterval)

@@ -164,16 +164,19 @@ func TestGetMetricValues(t *testing.T) {
 	timestamp := float64(1430355869.123)
 
 	param := url.Values{
-		"metric_name":      {metricName},
-		"from":             {strconv.FormatFloat(timestamp-10.0, 'f', 3, 64)},
-		"to":               {strconv.FormatFloat(timestamp, 'f', 3, 64)},
-		"filter_condition": {"value>10"},
-		"limit":            {"1024"}}
+		"metric_name":         {metricName},
+		"aggregator_function": {"max"},
+		"aggregator_column":   {"age"},
+		"group_interval":      {"1s"},
+		"from":                {strconv.FormatFloat(timestamp-10.0, 'f', 3, 64)},
+		"to":                  {strconv.FormatFloat(timestamp, 'f', 3, 64)},
+		"filter_condition":    {"value>10"},
+		"limit":               {"1024"}}
 	retBody := `[{"points": [[1430355869.123,144740003,20.0]],"name": "Jon.Snow","columns": ["time","sequence_number","age"]}]`
 	server, zeus := mock("/metrics/goZeus/_values/", &param, 200, retBody)
 	defer server.Close()
 
-	metrics, err := zeus.GetMetricValues(metricName, "", "", timestamp-10.0, timestamp, "value>10", 0, 1024)
+	metrics, err := zeus.GetMetricValues(metricName, "max", "age", "1s", timestamp-10.0, timestamp, "value>10", 0, 1024)
 	if err != nil {
 		t.Error("failed to get metric values:", err)
 	}
