@@ -227,6 +227,9 @@ func (zeus *Zeus) PostLogs(logs LogList) (successful int, err error) {
 	if len(logs.Name) == 0 || len(logs.Logs) == 0 {
 		return 0, errors.New("logs is empty")
 	}
+	if len(zeus.Token) == 0 {
+		return 0, errors.New("API token is empty")
+	}
 	urlStr := buildUrl(zeus.ApiServ, "logs", zeus.Token, logs.Name)
 
 	jsonStr, err := json.Marshal(logs)
