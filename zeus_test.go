@@ -112,6 +112,14 @@ func TestGetLogs(t *testing.T) {
 	server, zeus := mock("/logs/goZeus/", &param, 200, retBody)
 	defer server.Close()
 
+	token := zeus.Token
+	zeus.Token = ""
+	_, _, err := zeus.GetLogs("", "", "", 0, 0, 0, 0)
+	if err == nil {
+		t.Error("should fail on empty token")
+	}
+	zeus.Token = token
+
 	total, logs, err := zeus.GetLogs("", "", "", 0, 0, 0, 0)
 	if err == nil {
 		t.Error("test should failed because of missing parameters")
@@ -143,6 +151,14 @@ func TestPostMetrics(t *testing.T) {
 	server, zeus := mock("/metrics/goZeus/"+metricName+"/", &param, 200, retBody)
 	defer server.Close()
 
+	token := zeus.Token
+	zeus.Token = ""
+	_, err := zeus.PostMetrics(MetricList{})
+	if err == nil {
+		t.Error("should fail on empty token")
+	}
+	zeus.Token = token
+
 	successful, err := zeus.PostMetrics(MetricList{})
 	if err == nil {
 		t.Error("should fail on empty metrics")
@@ -164,6 +180,14 @@ func TestGetMetricNames(t *testing.T) {
 	retBody := `["Harry", "Potter"]`
 	server, zeus := mock("/metrics/goZeus/_names/", &param, 200, retBody)
 	defer server.Close()
+
+	token := zeus.Token
+	zeus.Token = ""
+	_, err := zeus.GetMetricNames(metricName, 1, 1024)
+	if err == nil {
+		t.Error("should fail on empty token")
+	}
+	zeus.Token = token
 
 	names, err := zeus.GetMetricNames(metricName, 1, 1024)
 	if err != nil {
@@ -199,6 +223,14 @@ func TestGetMetricValues(t *testing.T) {
 	server, zeus := mock("/metrics/goZeus/_values/", &param, 200, retBody)
 	defer server.Close()
 
+	token := zeus.Token
+	zeus.Token = ""
+	_, err := zeus.GetMetricValues(metricName, "max", "age", "1s", timestamp-10.0, timestamp, "value>10", 0, 1024)
+	if err == nil {
+		t.Error("should fail on empty token")
+	}
+	zeus.Token = token
+
 	metrics, err := zeus.GetMetricValues(metricName, "max", "age", "1s", timestamp-10.0, timestamp, "value>10", 0, 1024)
 	if err != nil {
 		t.Error("failed to get metric values:", err)
@@ -228,6 +260,14 @@ func TestDeleteMetrics(t *testing.T) {
 	retBody := `["Metric deletion successful"]`
 	server, zeus := mock("/metrics/goZeus/"+metricName+"/", &param, 200, retBody)
 	defer server.Close()
+
+	token := zeus.Token
+	zeus.Token = ""
+	_, err := zeus.DeleteMetrics("")
+	if err == nil {
+		t.Error("should fail on empty token")
+	}
+	zeus.Token = token
 
 	successful, err := zeus.DeleteMetrics("")
 	if successful != false || err == nil {
