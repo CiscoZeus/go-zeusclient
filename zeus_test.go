@@ -73,6 +73,14 @@ func TestPostLogs(t *testing.T) {
 	server, zeus := mock("/logs/goZeus/"+logName+"/", &param, 200, `{"successful": 1}`)
 	defer server.Close()
 
+	token := zeus.Token
+	zeus.Token = ""
+	_, err := zeus.PostLogs(LogList{})
+	if err == nil {
+		t.Error("should fail on empty token")
+	}
+	zeus.Token = token
+
 	successful, err := zeus.PostLogs(LogList{})
 	if err == nil {
 		t.Error("should fail on empty log")

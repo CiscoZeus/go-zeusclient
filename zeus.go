@@ -172,6 +172,9 @@ func (zeus *Zeus) request(method, urlStr string, data *url.Values) (
 // returned. Please use offset and limit to get the rest logs.
 func (zeus *Zeus) GetLogs(logName, field, pattern string, from, to int64,
 	offset, limit int) (total int, logs LogList, err error) {
+	if len(zeus.Token) == 0 {
+		return 0, LogList{}, errors.New("API token is empty")
+	}
 	urlStr := buildUrl(zeus.ApiServ, "logs", zeus.Token)
 	data := make(url.Values)
 	if len(logName) > 0 {
@@ -263,6 +266,9 @@ func (zeus *Zeus) PostMetrics(metrics MetricList) (
 		len(metrics.Metrics) == 0 {
 		return 0, errors.New("metrics is empty")
 	}
+	if len(zeus.Token) == 0 {
+		return 0, errors.New("API token is empty")
+	}
 	urlStr := buildUrl(zeus.ApiServ, "metrics", zeus.Token, metrics.Name)
 
 	jsonStr, err := json.Marshal(metrics)
@@ -291,6 +297,9 @@ func (zeus *Zeus) PostMetrics(metrics MetricList) (
 // expression metricName.
 func (zeus *Zeus) GetMetricNames(metricName string, offset, limit int) (
 	names []string, err error) {
+	if len(zeus.Token) == 0 {
+		return []string{}, errors.New("API token is empty")
+	}
 	urlStr := buildUrl(zeus.ApiServ, "metrics", zeus.Token, "_names")
 	data := make(url.Values)
 	if len(metricName) > 0 {
@@ -324,6 +333,9 @@ func (zeus *Zeus) GetMetricNames(metricName string, offset, limit int) (
 func (zeus *Zeus) GetMetricValues(metricName string, aggregator string,
 	aggregatorCol, groupInterval string, from, to float64, filterCondition string,
 	offset, limit int) (metrics MetricList, err error) {
+	if len(zeus.Token) == 0 {
+		return MetricList{}, errors.New("API token is empty")
+	}
 	urlStr := buildUrl(zeus.ApiServ, "metrics", zeus.Token, "_values")
 	data := make(url.Values)
 	if len(metricName) > 0 {
@@ -371,7 +383,9 @@ func (zeus *Zeus) DeleteMetrics(metricName string) (bool, error) {
 	if len(metricName) == 0 {
 		return false, errors.New("metric_name is required")
 	}
-
+	if len(zeus.Token) == 0 {
+		return false, errors.New("API token is empty")
+	}
 	urlStr := buildUrl(zeus.ApiServ, "metrics", zeus.Token, metricName)
 	data := url.Values{}
 
