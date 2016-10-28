@@ -16,7 +16,6 @@
 package zeus
 
 import (
-	_ "fmt"
 	"regexp"
 	"bytes"
 	"encoding/json"
@@ -176,7 +175,8 @@ body []byte, status int, err error) {
 	} else if method == "GET" {
 		resp, err = http.Get(urlStr + "?" + data.Encode())
 	} else if method == "PUT" {
-		req, err := http.NewRequest("PUT", urlStr, nil)
+		d := []byte((*data)["body"][0])
+		req, err := http.NewRequest("PUT", urlStr, bytes.NewBuffer(d))
 		if err != nil {
 			return []byte{}, 0, err
 		}
@@ -203,7 +203,7 @@ body []byte, status int, err error) {
 
 // PostAlert sends a alert.
 // It returns number of successfully sent logs or an error.
-func (zeus *Zeus) PostAlert(alert Alert) (status int, err error) {
+func (zeus *Zeus) PostAlert(alert Alert) (successful int, err error) {
 	if len(zeus.Token) == 0 {
 		return 0, errors.New("API token is empty")
 	}
@@ -215,9 +215,12 @@ func (zeus *Zeus) PostAlert(alert Alert) (status int, err error) {
 	}
 	data := url.Values{"body": {string(jsonStr)}}
 
-	_, status, err = zeus.request("POST", urlStr, &data)
+	_, status, err := zeus.request("POST", urlStr, &data)
 	if err != nil {
 		return 0, err
+	}
+	if status == 201 {
+		successful = 1
 	}
 
 	return
@@ -251,7 +254,7 @@ func (zeus *Zeus) GetAlerts(metric string) (total int, alerts []Alert, err error
 }
 
 // PutAlert update alert which is specified with id
-func (zeus *Zeus) PutAlert(id int64, alert Alert) (status int, err error) {
+func (zeus *Zeus) PutAlert(id int64, alert Alert) (successful int, err error) {
 	if len(zeus.Token) == 0 {
 		return 0, errors.New("API token is empty")
 	}
@@ -263,9 +266,12 @@ func (zeus *Zeus) PutAlert(id int64, alert Alert) (status int, err error) {
 	}
 	data := url.Values{"body": {string(jsonStr)}}
 
-	_, status, err = zeus.request("PUT", urlStr, &data)
+	_, status, err := zeus.request("PUT", urlStr, &data)
 	if err != nil {
 		return 0, err
+	}
+	if status == 200 {
+		successful = 1
 	}
 
 	return
@@ -295,16 +301,19 @@ func (zeus *Zeus) GetAlert(id int64) (alert Alert, err error) {
 }
 
 // DeleteAlert delete a alert which is specified with id
-func (zeus *Zeus) DeleteAlert(id int64) (status int, err error) {
+func (zeus *Zeus) DeleteAlert(id int64) (successful int, err error) {
 	if len(zeus.Token) == 0 {
 		return 0, errors.New("API token is empty")
 	}
 	urlStr := buildUrl(zeus.ApiServ, "alerts", zeus.Token, strconv.FormatInt(id, 10))
 	data := make(url.Values)
 
-	_, status, err = zeus.request("DELETE", urlStr, &data)
+	_, status, err := zeus.request("DELETE", urlStr, &data)
 	if err != nil {
 		return 0, err
+	}
+	if status == 200 {
+		successful = 1
 	}
 
 	return
@@ -312,7 +321,7 @@ func (zeus *Zeus) DeleteAlert(id int64) (status int, err error) {
 
 // EnableAlerts make list of alert enable
 // It returns number of successfully sent logs or an error.
-func (zeus *Zeus) EnableAlerts(alertIds []int64) (status int, err error) {
+func (zeus *Zeus) EnableAlerts(alertIds []int64) (successful int, err error) {
 	if len(zeus.Token) == 0 {
 		return 0, errors.New("API token is empty")
 	}
@@ -325,9 +334,12 @@ func (zeus *Zeus) EnableAlerts(alertIds []int64) (status int, err error) {
 	}
 	data := url.Values{"body": {string(jsonStr)}}
 
-	_, status, err = zeus.request("POST", urlStr, &data)
+	_, status, err := zeus.request("POST", urlStr, &data)
 	if err != nil {
 		return 0, err
+	}
+	if status == 201 {
+		successful = 1
 	}
 
 	return
@@ -335,7 +347,7 @@ func (zeus *Zeus) EnableAlerts(alertIds []int64) (status int, err error) {
 
 // DisableAlerts make list of alert enable
 // It returns number of successfully sent logs or an error.
-func (zeus *Zeus) DisableAlerts(alertIds []int64) (status int, err error) {
+func (zeus *Zeus) DisableAlerts(alertIds []int64) (successful int, err error) {
 	if len(zeus.Token) == 0 {
 		return 0, errors.New("API token is empty")
 	}
@@ -348,9 +360,12 @@ func (zeus *Zeus) DisableAlerts(alertIds []int64) (status int, err error) {
 	}
 	data := url.Values{"body": {string(jsonStr)}}
 
-	_, status, err = zeus.request("POST", urlStr, &data)
+	_, status, err := zeus.request("POST", urlStr, &data)
 	if err != nil {
 		return 0, err
+	}
+	if status == 201 {
+		successful = 1
 	}
 
 	return

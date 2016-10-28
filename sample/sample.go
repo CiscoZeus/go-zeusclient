@@ -36,8 +36,8 @@ func main() {
 		Frequency: 30.0,
 	}
 	fmt.Printf("Test Alerts API with alert_name: %s, username : %s\n", postAlert.Alert_name, postAlert.Username)
-	status, err := zeus.PostAlert(postAlert)
-	fmt.Println("PostAlert: ", status, err)
+	successful, err := zeus.PostAlert(postAlert)
+	fmt.Println("PostAlert: ", successful, err)
 	if err != nil {
 		fmt.Println("=> Failed")
 	}
@@ -62,11 +62,11 @@ func main() {
 		Status: "active",
 		Frequency: 32.0,
 	}
-	status, err = zeus.PutAlert(postId, putAlert)
+	successful, err = zeus.PutAlert(postId, putAlert)
 	if err != nil {
 		fmt.Println("=> Failed")
 	}
-	fmt.Println("PostAlert: ", status, err)
+	fmt.Println("PostAlert: ", successful, err)
 	fmt.Printf("The Alert is changed to alert_name: %s, username : %s\n", putAlert.Alert_name, putAlert.Username)
 
 	alert, err := zeus.GetAlert(postId)
@@ -75,10 +75,10 @@ func main() {
 	}
 	fmt.Println("GetAlert: ", alert, err)
 
-	status, err = zeus.EnableAlerts([]int64{postId})
-	fmt.Println("EnableAlerts: ", status, err)
-	status, err = zeus.DisableAlerts([]int64{postId})
-	fmt.Println("DisableAlerts: ", status, err)
+	successful, err = zeus.EnableAlerts([]int64{postId})
+	fmt.Println("EnableAlerts: ", successful, err)
+	successful, err = zeus.DisableAlerts([]int64{postId})
+	fmt.Println("DisableAlerts: ", successful, err)
 
 	logs := LogList{
 		Name: randString(5),
