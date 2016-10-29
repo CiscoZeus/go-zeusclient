@@ -40,30 +40,35 @@ func mock(expPath string, expParam *url.Values, code int, retBody string) (
 			reqBody, _ := ioutil.ReadAll(r.Body)
 			if r.Method == "GET" {
 				expPath += "?" + expParam.Encode()
+				// For golang 1.6.2
+				pathMatch, _ := regexp.MatchString(`/$`, r.RequestURI)
+				if pathMatch {
+					r.RequestURI += "?"
+				}
 				if (expPath != r.RequestURI) {
-					fmt.Println("code 400: expPath", expPath)
-					fmt.Println("code 400: r.RequestURI", r.RequestURI)
+					// fmt.Println("code 400: expPath", expPath)
+					// fmt.Println("code 400: r.RequestURI", r.RequestURI)
 					w.WriteHeader(400)
 				} else {
 					w.WriteHeader(code)
 				}
 			} else if (r.Method == "POST" || r.Method == "PUT" || r.Method == "DELETE") {
-				alert_match, _ := regexp.MatchString("alerts", expPath)
+				alertMatch, _ := regexp.MatchString("alerts", expPath)
 				if (expPath != r.RequestURI) {
-					fmt.Println("code 400: expPath", expPath)
-					fmt.Println("code 400: r.RequestURI", r.RequestURI)
+					// fmt.Println("code 400: expPath", expPath)
+					// fmt.Println("code 400: r.RequestURI", r.RequestURI)
 					w.WriteHeader(400)
-				} else if (r.Method == "POST" || r.Method == "PUT") && alert_match {
+				} else if (r.Method == "POST" || r.Method == "PUT") && alertMatch {
 					if string(reqBody) != (*expParam)["body"][0] {
-						fmt.Println("code 400 reqBody:", string(reqBody))
-						fmt.Println("code 400 expParam:", (*expParam)["body"][0])
+						// fmt.Println("code 400 reqBody:", string(reqBody))
+						// fmt.Println("code 400 expParam:", (*expParam)["body"][0])
 						w.WriteHeader(400)
 					} else {
 						w.WriteHeader(code)
 					}
 				} else if string(reqBody) != expParam.Encode() {
-					fmt.Println("code 400 reqBody:", string(reqBody))
-					fmt.Println("code 400 expParam:", (*expParam)["body"][0])
+					// fmt.Println("code 400 reqBody:", string(reqBody))
+					// fmt.Println("code 400 expParam:", (*expParam)["body"][0])
 					w.WriteHeader(400)
 				} else {
 					w.WriteHeader(code)
@@ -158,10 +163,10 @@ func TestZeusGetAlerts(t *testing.T) {
 
 	total, alerts, err := zeus.GetAlerts("")
 	if err != nil {
-		t.Error("failed to retrieve logs:", err)
+		t.Error("failed to retrieve alerts:", err)
 	}
 	if total != 1 || alerts[0].Token != "databucket" {
-		t.Error("failed to retrieve logs:", err)
+		t.Error("Retrieved alerts are wrong: ", total, alerts)
 	}
 }
 
@@ -236,7 +241,7 @@ func TestZeusGetAlert(t *testing.T) {
 		t.Error("failed to retrieve alert:", err)
 	}
 	if alert.Token != "databucket" {
-		t.Error("failed to retrieve alert:", err)
+		t.Error("Retrieved alerts are wrong: ", alert)
 	}
 }
 
@@ -546,10 +551,9 @@ func TestZeusGetTrigalert(t *testing.T) {
 	if err != nil {
 		t.Error("failed to retrieve trigalert:", err)
 	}
-	fmt.Println(trigalert["successful"])
 	id, _ := trigalert["successful"].(float64)
 	if id != float64(1) {
-		t.Error("failed to retrieve trigalert:", err)
+		t.Error("Retrieved trigalert is wrong:", trigalert)
 	}
 }
 
@@ -570,9 +574,8 @@ func TestZeusGetTrigalertLast24(t *testing.T) {
 	if err != nil {
 		t.Error("failed to retrieve trigalert_last24:", err)
 	}
-	fmt.Println(trigalert["successful"])
 	id, _ := trigalert["successful"].(float64)
 	if id != float64(1) {
-		t.Error("failed to retrieve trigalert_last24:", err)
+		t.Error("Retrieved trigalert_last24 is wrong:", trigalert)
 	}
 }
