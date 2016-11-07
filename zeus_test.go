@@ -53,19 +53,10 @@ func mock(expPath string, expParam *url.Values, code int, retBody string) (
 					w.WriteHeader(code)
 				}
 			} else if (r.Method == "POST" || r.Method == "PUT" || r.Method == "DELETE") {
-				alertMatch, _ := regexp.MatchString("alerts", expPath)
 				if (expPath != r.RequestURI) {
 					// fmt.Println("code 400: expPath", expPath)
 					// fmt.Println("code 400: r.RequestURI", r.RequestURI)
 					w.WriteHeader(400)
-				} else if (r.Method == "POST" || r.Method == "PUT") && alertMatch {
-					if string(reqBody) != (*expParam)["body"][0] {
-						// fmt.Println("code 400 reqBody:", string(reqBody))
-						// fmt.Println("code 400 expParam:", (*expParam)["body"][0])
-						w.WriteHeader(400)
-					} else {
-						w.WriteHeader(code)
-					}
 				} else if string(reqBody) != expParam.Encode() {
 					// fmt.Println("code 400 reqBody:", string(reqBody))
 					// fmt.Println("code 400 expParam:", (*expParam)["body"][0])
@@ -104,9 +95,9 @@ func TestPostAlert(t *testing.T) {
 		Status: "active",
 		Frequency: 30.0,
 	}
-	jsonStr, _ := json.Marshal(alert)
-	param := url.Values{"body": {string(jsonStr)}}
-	server, zeus := mock("/alerts/goZeus/", &param, 201, `{"successful": 1}`)
+	data := make(url.Values)
+	setAlertToUrlValues(alert, &data)
+	server, zeus := mock("/alerts/goZeus/", &data, 201, `{"successful": 1}`)
 	defer server.Close()
 
 	token := zeus.Token
@@ -155,13 +146,13 @@ func TestZeusGetAlerts(t *testing.T) {
 
 	token := zeus.Token
 	zeus.Token = ""
-	_, _, err := zeus.GetAlerts("")
+	_, _, err := zeus.GetAlerts()
 	if err == nil {
 		t.Error("should fail on empty token")
 	}
 	zeus.Token = token
 
-	total, alerts, err := zeus.GetAlerts("")
+	total, alerts, err := zeus.GetAlerts()
 	if err != nil {
 		t.Error("failed to retrieve alerts:", err)
 	}
@@ -183,9 +174,9 @@ func TestPutAlert(t *testing.T) {
 		Status: "active",
 		Frequency: 30.0,
 	}
-	jsonStr, _ := json.Marshal(alert)
-	param := url.Values{"body": {string(jsonStr)}}
-	server, zeus := mock("/alerts/goZeus/1/", &param, 200, `{"successful": 1}`)
+	data := make(url.Values)
+	setAlertToUrlValues(alert, &data)
+	server, zeus := mock("/alerts/goZeus/1/", &data, 200, `{"successful": 1}`)
 	defer server.Close()
 
 	token := zeus.Token
@@ -247,7 +238,7 @@ func TestZeusGetAlert(t *testing.T) {
 
 func TestZeusDeleteAlert(t *testing.T) {
 	param := make(url.Values)
-	server, zeus := mock("/alerts/goZeus/1/", &param, 200, `{"successful": 1}`)
+	server, zeus := mock("/alerts/goZeus/1/", &param, 204, `{"successful": 1}`)
 
 	defer server.Close()
 
@@ -269,53 +260,7 @@ func TestZeusDeleteAlert(t *testing.T) {
 	}
 }
 
-func TestZeusEnableAlerts(t *testing.T) {
-	jsonStr, _ := json.Marshal(map[string][]int64{"id": []int64{1, 2, 3}})
-	param := url.Values{"body": {string(jsonStr)}}
-	server, zeus := mock("/alerts/goZeus/enable/", &param, 201, `{"successful": 1}`)
-	defer server.Close()
 
-	token := zeus.Token
-	zeus.Token = ""
-	_, err := zeus.EnableAlerts([]int64{})
-	if err == nil {
-		t.Error("should fail on empty token")
-	}
-	zeus.Token = token
-
-	successful, err := zeus.EnableAlerts([]int64{1, 2, 3})
-
-	if err != nil {
-		t.Error("failed to enable logs:", err)
-	}
-	if successful != 1 {
-		t.Errorf("successful=%d != 1", successful)
-	}
-}
-
-func TestZeusDisableAlerts(t *testing.T) {
-	jsonStr, _ := json.Marshal(map[string][]int64{"id": []int64{1, 2, 3}})
-	param := url.Values{"body": {string(jsonStr)}}
-	server, zeus := mock("/alerts/goZeus/disable/", &param, 201, `{"successful": 1}`)
-	defer server.Close()
-
-	token := zeus.Token
-	zeus.Token = ""
-	_, err := zeus.DisableAlerts([]int64{})
-	if err == nil {
-		t.Error("should fail on empty token")
-	}
-	zeus.Token = token
-
-	successful, err := zeus.DisableAlerts([]int64{1, 2, 3})
-
-	if err != nil {
-		t.Error("failed to disable logs:", err)
-	}
-	if successful != 1 {
-		t.Errorf("successful=%d != 1", successful)
-	}
-}
 
 // Logs test
 func TestPostLogs(t *testing.T) {
