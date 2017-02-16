@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"testing"
 	"time"
+	"regexp"
 )
 
 func init() {
@@ -39,12 +40,30 @@ func mock(expPath string, expParam *url.Values, code int, retBody string) (
 			reqBody, _ := ioutil.ReadAll(r.Body)
 			if r.Method == "GET" {
 				expPath += "?" + expParam.Encode()
-			}
-			if expPath != r.RequestURI ||
-				(r.Method == "POST" && string(reqBody) != expParam.Encode()) {
-				w.WriteHeader(400)
-			} else {
-				w.WriteHeader(code)
+				// For golang 1.6.2
+				pathMatch, _ := regexp.MatchString(`/$`, r.RequestURI)
+				if pathMatch {
+					r.RequestURI += "?"
+				}
+				if (expPath != r.RequestURI) {
+					// fmt.Println("code 400: expPath", expPath)
+					// fmt.Println("code 400: r.RequestURI", r.RequestURI)
+					w.WriteHeader(400)
+				} else {
+					w.WriteHeader(code)
+				}
+			} else if (r.Method == "POST" || r.Method == "PUT" || r.Method == "DELETE") {
+				if (expPath != r.RequestURI) {
+					// fmt.Println("code 400: expPath", expPath)
+					// fmt.Println("code 400: r.RequestURI", r.RequestURI)
+					w.WriteHeader(400)
+				} else if string(reqBody) != expParam.Encode() {
+					// fmt.Println("code 400 reqBody:", string(reqBody))
+					// fmt.Println("code 400 expParam:", (*expParam)["body"][0])
+					w.WriteHeader(400)
+				} else {
+					w.WriteHeader(code)
+				}
 			}
 			fmt.Fprintln(w, retBody)
 		}))
@@ -63,6 +82,187 @@ func randString(n int) string {
 	return string(b)
 }
 
+func TestPostAlert(t *testing.T) {
+	alert := Alert{
+		Alert_name:	randString(5),
+		Username:	randString(5),
+		Token: "databucket",
+		Alerts_type: "metric",
+		Alert_expression: "cpu.value > 20",
+		Alert_severity: "S1",
+		Metric_name: "cpu.value",
+		Emails: "blah@blah.com",
+		Status: "active",
+		Frequency: 30.0,
+	}
+	data := make(url.Values)
+	setAlertToUrlValues(alert, &data)
+	server, zeus := mock("/alerts/goZeus/", &data, 201, `{"successful": 1}`)
+	defer server.Close()
+
+	token := zeus.Token
+	zeus.Token = ""
+	_, err := zeus.PostAlert(Alert{})
+	if err == nil {
+		t.Error("should fail on empty token")
+	}
+	zeus.Token = token
+
+	_, err = zeus.PostAlert(Alert{})
+	if err != nil {
+		t.Error("should fail on empty alert")
+	}
+
+	successful, err := zeus.PostAlert(alert)
+	if err != nil {
+		t.Error("failed to post logs:", err)
+	}
+	if successful != 1 {
+		t.Errorf("successful=%d != 1", successful)
+	}
+}
+
+func TestZeusGetAlerts(t *testing.T) {
+	alert := Alert{
+		Alert_name:  randString(5),
+		Username:  randString(5),
+		Token: "databucket",
+		Alerts_type: "metric",
+		Alert_expression: "cpu.value > 20",
+		Alert_severity: "S1",
+		Metric_name: "cpu.value",
+		Emails: "blah@blah.com",
+		Status: "active",
+		Frequency: 30.0,
+	}
+	metric := ""
+	param := make(url.Values)
+	if len(metric) > 0 {
+		param.Add("metric", metric)
+	}
+	jsonStr, _ := json.Marshal([]Alert{alert})
+	server, zeus := mock("/alerts/goZeus/", &param, 200, string(jsonStr))
+	defer server.Close()
+
+	token := zeus.Token
+	zeus.Token = ""
+	_, _, err := zeus.GetAlerts()
+	if err == nil {
+		t.Error("should fail on empty token")
+	}
+	zeus.Token = token
+
+	total, alerts, err := zeus.GetAlerts()
+	if err != nil {
+		t.Error("failed to retrieve alerts:", err)
+	}
+	if total != 1 || alerts[0].Token != "databucket" {
+		t.Error("Retrieved alerts are wrong: ", total, alerts)
+	}
+}
+
+func TestPutAlert(t *testing.T) {
+	alert := Alert{
+		Alert_name:	randString(5),
+		Username:	randString(5),
+		Token: "databucket",
+		Alerts_type: "metric",
+		Alert_expression: "cpu.value > 20",
+		Alert_severity: "S1",
+		Metric_name: "cpu.value",
+		Emails: "blah@blah.com",
+		Status: "active",
+		Frequency: 30.0,
+	}
+	data := make(url.Values)
+	setAlertToUrlValues(alert, &data)
+	server, zeus := mock("/alerts/goZeus/1/", &data, 200, `{"successful": 1}`)
+	defer server.Close()
+
+	token := zeus.Token
+	zeus.Token = ""
+	_, err := zeus.PutAlert(1, Alert{})
+	if err == nil {
+		t.Error("should fail on empty token")
+	}
+	zeus.Token = token
+
+	_, err = zeus.PutAlert(1, Alert{})
+	if err != nil {
+		t.Error("should fail on empty alert")
+	}
+
+	successful, err := zeus.PutAlert(1, alert)
+	if err != nil {
+		t.Error("failed to put alert:", err)
+	}
+	if successful != 1 {
+		t.Errorf("successful=%d != 1", successful)
+	}
+}
+
+func TestZeusGetAlert(t *testing.T) {
+	sample_alert := Alert{
+		Alert_name:  randString(5),
+		Username:  randString(5),
+		Token: "databucket",
+		Alerts_type: "metric",
+		Alert_expression: "cpu.value > 20",
+		Alert_severity: "S1",
+		Metric_name: "cpu.value",
+		Emails: "blah@blah.com",
+		Status: "active",
+		Frequency: 30.0,
+	}
+	param := make(url.Values)
+	jsonStr, _ := json.Marshal(sample_alert)
+	server, zeus := mock("/alerts/goZeus/1/", &param, 200, string(jsonStr))
+	defer server.Close()
+
+	token := zeus.Token
+	zeus.Token = ""
+	_, err := zeus.GetAlert(1)
+	if err == nil {
+		t.Error("should fail on empty token")
+	}
+	zeus.Token = token
+
+	alert, err := zeus.GetAlert(1)
+	if err != nil {
+		t.Error("failed to retrieve alert:", err)
+	}
+	if alert.Token != "databucket" {
+		t.Error("Retrieved alerts are wrong: ", alert)
+	}
+}
+
+func TestZeusDeleteAlert(t *testing.T) {
+	param := make(url.Values)
+	server, zeus := mock("/alerts/goZeus/1/", &param, 204, `{"successful": 1}`)
+
+	defer server.Close()
+
+	token := zeus.Token
+	zeus.Token = ""
+	_, err := zeus.DeleteAlert(1)
+	if err == nil {
+		t.Error("should fail on empty token")
+	}
+	zeus.Token = token
+
+	successful, err := zeus.DeleteAlert(1)
+
+	if err != nil {
+		t.Error("failed to delete logs:", err)
+	}
+	if successful != 1 {
+		t.Errorf("successful=%d != 1", successful)
+	}
+}
+
+
+
+// Logs test
 func TestPostLogs(t *testing.T) {
 	logName := randString(5)
 	log := Log{"timestamp": time.Now().Unix(), "message": "Message from Go"}
@@ -274,8 +474,53 @@ func TestDeleteMetrics(t *testing.T) {
 		t.Error("should fail on empty metricName")
 	}
 	successful, err = zeus.DeleteMetrics(metricName)
-
 	if err != nil || successful != true {
 		t.Error("failed to delete on series")
+	}
+}
+
+func TestZeusGetTrigalert(t *testing.T) {
+	param := make(url.Values)
+	server, zeus := mock("/trigalerts/goZeus/", &param, 200, `{"successful": 1}`)
+	defer server.Close()
+
+	token := zeus.Token
+	zeus.Token = ""
+	_, err := zeus.GetTrigalert()
+	if err == nil {
+		t.Error("should fail on empty token")
+	}
+	zeus.Token = token
+
+	trigalert, err := zeus.GetTrigalert()
+	if err != nil {
+		t.Error("failed to retrieve trigalert:", err)
+	}
+	id, _ := trigalert["successful"].(float64)
+	if id != float64(1) {
+		t.Error("Retrieved trigalert is wrong:", trigalert)
+	}
+}
+
+func TestZeusGetTrigalertLast24(t *testing.T) {
+	param := make(url.Values)
+	server, zeus := mock("/trigalerts/goZeus/last24/", &param, 200, `{"successful": 1}`)
+	defer server.Close()
+
+	token := zeus.Token
+	zeus.Token = ""
+	_, err := zeus.GetTrigalertLast24()
+	if err == nil {
+		t.Error("should fail on empty token")
+	}
+	zeus.Token = token
+
+	trigalert, err := zeus.GetTrigalertLast24()
+	if err != nil {
+		t.Error("failed to retrieve trigalert_last24:", err)
+	}
+	id, _ := trigalert["successful"].(float64)
+	if id != float64(1) {
+		t.Error("Retrieved trigalert_last24 is wrong:", trigalert)
 	}
 }

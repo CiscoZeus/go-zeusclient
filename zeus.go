@@ -25,6 +25,58 @@ import (
 	"strings"
 )
 
+// Alert contains properties of a alert in a key-value way
+type Alert struct {
+	Id int64 `json:"id"`
+	Alert_name string `json:"alert_name"`
+	Created string `json:"created"`
+	Username string `json:"username"`
+	Token string `json:"token"`
+	Alerts_type string `json:"alerts_type"`
+	Alert_expression string `json:"alert_expression"`
+	Alert_severity string `json:"alert_severity"`
+	Metric_name string `json:"metric_name"`
+	Emails string `json:"emails"`
+	Status string `json:"status"`
+	Frequency float64 `json:"frequency"`
+	Last_updated string `json:"last_updated"`
+}
+
+func setAlertToUrlValues(alert Alert, data *url.Values) (errString string){
+	if len(alert.Alert_name) > 0 {
+		(*data).Add("alert_name", alert.Alert_name)
+	} else {
+		return "Alert_name is required"
+	}
+	if len(alert.Username) > 0 {
+		(*data).Add("username", alert.Username)
+	}
+	if len(alert.Alerts_type) > 0 {
+		(*data).Add("alerts_type", alert.Alerts_type)
+	}
+	if len(alert.Alert_expression) > 0 {
+		(*data).Add("alert_expression", alert.Alert_expression)
+	} else {
+		return "Alert_expression is required"
+	}
+	if len(alert.Alert_severity) > 0 {
+		(*data).Add("alert_severity", alert.Alert_severity)
+	}
+	if len(alert.Metric_name) > 0 {
+		(*data).Add("metric_name", alert.Metric_name)
+	}
+	if len(alert.Emails) > 0 {
+		(*data).Add("emails", alert.Emails)
+	}
+	if len(alert.Status) > 0 {
+		(*data).Add("status", alert.Status)
+	}
+	if alert.Frequency > 0 {
+		(*data).Add("frequency", strconv.FormatFloat(alert.Frequency, 'f', 6, 64))
+	}
+	return ""
+}
+
 // Log contains properties of a log in a key-value way
 // Note that Zeus doesn't support nested json, the value has to be string or
 // number.
@@ -134,7 +186,7 @@ func buildUrl(urls ...string) string {
 }
 
 func (zeus *Zeus) request(method, urlStr string, data *url.Values) (
-	body []byte, status int, err error) {
+body []byte, status int, err error) {
 	if data == nil {
 		data = &url.Values{}
 	}
@@ -143,8 +195,15 @@ func (zeus *Zeus) request(method, urlStr string, data *url.Values) (
 		resp, err = http.PostForm(urlStr, *data)
 	} else if method == "GET" {
 		resp, err = http.Get(urlStr + "?" + data.Encode())
+	} else if method == "PUT" {
+		req, err := http.NewRequest("PUT", urlStr, strings.NewReader(data.Encode()))
+		if err != nil {
+			return []byte{}, 0, err
+		}
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		resp, err = http.DefaultClient.Do(req)
 	} else if method == "DELETE" {
-		req, err := http.NewRequest("DELETE", urlStr, nil)
+		req, err := http.NewRequest("DELETE", urlStr, strings.NewReader(data.Encode()))
 		if err != nil {
 			return []byte{}, 0, err
 		}
@@ -163,6 +222,121 @@ func (zeus *Zeus) request(method, urlStr string, data *url.Values) (
 	return
 }
 
+// PostAlert sends a alert.
+// It returns number of successfully sent logs or an error.
+func (zeus *Zeus) PostAlert(alert Alert) (successful int, err error) {
+	if len(zeus.Token) == 0 {
+		return 0, errors.New("API token is empty")
+	}
+	urlStr := buildUrl(zeus.ApiServ, "alerts", zeus.Token)
+
+	data := make(url.Values)
+	errString := setAlertToUrlValues(alert, &data)
+	if errString != "" {
+		return 0, err
+	}
+
+	_, status, err := zeus.request("POST", urlStr, &data)
+	if err != nil {
+		return 0, err
+	}
+	if status == 201 {
+		successful = 1
+	}
+
+	return
+}
+
+// GetAlerts returns list of alert
+func (zeus *Zeus) GetAlerts() (total int, alerts []Alert, err error) {
+	if len(zeus.Token) == 0 {
+		return 0, []Alert{}, errors.New("API token is empty")
+	}
+	urlStr := buildUrl(zeus.ApiServ, "alerts", zeus.Token)
+	data := make(url.Values)
+
+	body, status, err := zeus.request("GET", urlStr, &data)
+	if err != nil {
+		return 0, []Alert{}, err
+	}
+
+	if status == 200 {
+		if err := json.Unmarshal(body, &alerts); err != nil {
+			return 0, []Alert{}, err
+		}
+		total = len(alerts)
+	} else if status == 400 {
+		return 0, []Alert{}, errors.New("Bad request")
+	}
+	return
+}
+
+// PutAlert update alert which is specified with id
+func (zeus *Zeus) PutAlert(id int64, alert Alert) (successful int, err error) {
+	if len(zeus.Token) == 0 {
+		return 0, errors.New("API token is empty")
+	}
+	urlStr := buildUrl(zeus.ApiServ, "alerts", zeus.Token, strconv.FormatInt(id, 10))
+
+	data := make(url.Values)
+	errString := setAlertToUrlValues(alert, &data)
+	if errString != "" {
+		return 0, err
+	}
+
+	_, status, err := zeus.request("PUT", urlStr, &data)
+	if err != nil {
+		return 0, err
+	}
+	if status == 200 {
+		successful = 1
+	}
+
+	return
+}
+
+// GetAlert returns a alert by id
+func (zeus *Zeus) GetAlert(id int64) (alert Alert, err error) {
+	if len(zeus.Token) == 0 {
+		return Alert{}, errors.New("API token is empty")
+	}
+	urlStr := buildUrl(zeus.ApiServ, "alerts", zeus.Token, strconv.FormatInt(id, 10))
+
+	data := make(url.Values)
+	body, status, err := zeus.request("GET", urlStr, &data)
+	if err != nil {
+		return Alert{}, err
+	}
+
+	if status == 200 {
+		if err := json.Unmarshal(body, &alert); err != nil {
+			return Alert{}, err
+		}
+	} else if status == 400 {
+		return Alert{}, errors.New("Bad request")
+	}
+	return
+}
+
+// DeleteAlert delete a alert which is specified with id
+func (zeus *Zeus) DeleteAlert(id int64) (successful int, err error) {
+	if len(zeus.Token) == 0 {
+		return 0, errors.New("API token is empty")
+	}
+	urlStr := buildUrl(zeus.ApiServ, "alerts", zeus.Token, strconv.FormatInt(id, 10))
+	data := make(url.Values)
+
+	_, status, err := zeus.request("DELETE", urlStr, &data)
+	if err != nil {
+		return 0, err
+	}
+	if status == 204 {
+		successful = 1
+	}
+
+	return
+}
+
 // GetLogs returns a list of logs that math given constrains. logName is the
 // name(or category) of the log. Pattern is a expression to match given log
 // field. From and to are the starting and ending timestamp of logs in unix
@@ -171,7 +345,7 @@ func (zeus *Zeus) request(method, urlStr string, data *url.Values) (
 // worry, limit(10 by default) controls the up limit of number of logs
 // returned. Please use offset and limit to get the rest logs.
 func (zeus *Zeus) GetLogs(logName, field, pattern string, from, to int64,
-	offset, limit int) (total int, logs LogList, err error) {
+offset, limit int) (total int, logs LogList, err error) {
 	if len(zeus.Token) == 0 {
 		return 0, LogList{}, errors.New("API token is empty")
 	}
@@ -404,4 +578,50 @@ func (zeus *Zeus) DeleteMetrics(metricName string) (bool, error) {
 		}
 	}
 	return false, nil
+}
+
+// GetTrigalert returns a trigalert
+func (zeus *Zeus) GetTrigalert() (trigalert map[string]interface{}, err error) {
+	if len(zeus.Token) == 0 {
+		return map[string]interface{}{}, errors.New("API token is empty")
+	}
+	urlStr := buildUrl(zeus.ApiServ, "trigalerts", zeus.Token)
+
+	data := make(url.Values)
+	body, status, err := zeus.request("GET", urlStr, &data)
+	if err != nil {
+		return map[string]interface{}{}, err
+	}
+
+	if status == 200 {
+		if err := json.Unmarshal(body, &trigalert); err != nil {
+			return map[string]interface{}{}, err
+		}
+	} else if status == 400 {
+		return map[string]interface{}{}, errors.New("Bad request")
+	}
+	return
+}
+
+// GetTrigalert returns a trigalert of last24
+func (zeus *Zeus) GetTrigalertLast24() (trigalert map[string]interface{}, err error) {
+	if len(zeus.Token) == 0 {
+		return map[string]interface{}{}, errors.New("API token is empty")
+	}
+	urlStr := buildUrl(zeus.ApiServ, "trigalerts", zeus.Token, "last24")
+
+	data := make(url.Values)
+	body, status, err := zeus.request("GET", urlStr, &data)
+	if err != nil {
+		return map[string]interface{}{}, err
+	}
+
+	if status == 200 {
+		if err := json.Unmarshal(body, &trigalert); err != nil {
+			return map[string]interface{}{}, err
+		}
+	} else if status == 400 {
+		return map[string]interface{}{}, errors.New("Bad request")
+	}
+	return
 }
