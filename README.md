@@ -27,7 +27,7 @@ zeus.bucket("{Your organization's name}/{Your bucket's name}").SomeMethod()
 ```
 
 ## Examples
-After initialize 'zeus' as [Usage](##Usage), 
+After initialize 'zeus' as [Usage](#usage),
 * Send a log
 ```go
 logs := LogList{
