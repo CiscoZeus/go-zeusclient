@@ -197,6 +197,8 @@ func (zeus *Zeus) request(method, urlStr string, data *url.Values) (
 		fmt.Println("Error: Please set bucket's name. ex) zeus.bucket(\"org1/bucket1\").GetLogs()")
 		return []byte{}, 0, err
 	}
+	organizationAndBucket := zeus.OrganizationAndBucket
+	zeus.OrganizationAndBucket = ""
 
 	if data == nil {
 		data = &url.Values{}
@@ -218,7 +220,7 @@ func (zeus *Zeus) request(method, urlStr string, data *url.Values) (
 		return []byte{}, 0, err
 	}
 	request.Header.Add("Authorization", "Bearer "+zeus.Token)
-	request.Header.Add("Bucket-Name", zeus.OrganizationAndBucket)
+	request.Header.Add("Bucket-Name", organizationAndBucket)
 
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
