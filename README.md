@@ -15,12 +15,19 @@ Go client for CiscoZeus.io. it allows a user to send and receive data to and fro
 go get github.com/CiscoZeus/go-zeusclient
 ```
 
-## Examples
-* Generate a Zeus client object:
+## Usage
+At first, generate a Zeus client object:
 ```go
 zeus := &Zeus{ApiServ: "http://api.ciscozeus.io", Token: "{Your token}"}
 ```
+Then, you can call methods as
+```go
+zeus.bucket("{Your organization's name}/{Your bucket's name}").SomeMethod()
+// "bucket" method sets your bucket's information. It's necessary
+```
 
+## Examples
+After initialize 'zeus' as [Usage](#usage),
 * Send a log
 ```go
 logs := LogList{
@@ -29,12 +36,12 @@ logs := LogList{
         Log{"foo": "bar", "tar": "woo"},
     },
 }
-suc, err := zeus.PostLogs(logs)
+suc, err := zeus.bucket("org1/bucket1").PostLogs(logs)
 ```
 
 * Retrieve logs
 ```go
-total, logs, err := zeus.GetLogs("syslog", "", "", 0, 0, 0, 0)
+total, logs, err := zeus.bucket("org1/bucket1").GetLogs("syslog", "", "", 0, 0, 0, 0)
 ```
 
 * Send a metric
@@ -49,18 +56,18 @@ metrics := MetricList{
         },
     },
 }
-suc, err := zeus.PostMetrics(metrics)
+suc, err := zeus.bucket("org1/bucket1").PostMetrics(metrics)
 ```
 
 * Query metric name
 ```go
-name, err := zeus.GetMetricNames("sample*", 0, 0)
+name, err := zeus.bucket("org1/bucket1").GetMetricNames("sample*", 0, 0)
 ```
 
 * Query metric values
 ```go
 timestamp := 1430355869.123
-rMetrics, err := zeus.GetMetricValues("sample", "", "", "", timestamp-10.0, timestamp, "col2>1", 0, 1024)
+rMetrics, err := zeus.bucket("org1/bucket1").GetMetricValues("sample", "", "", "", timestamp-10.0, timestamp, "col2>1", 0, 1024)
 ```
 
 For more examples, please refer to sample/sample.go

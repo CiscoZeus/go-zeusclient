@@ -18,6 +18,7 @@ package zeus
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -27,22 +28,22 @@ import (
 
 // Alert contains properties of a alert in a key-value way
 type Alert struct {
-	Id int64 `json:"id"`
-	Alert_name string `json:"alert_name"`
-	Created string `json:"created"`
-	Username string `json:"username"`
-	Token string `json:"token"`
-	Alerts_type string `json:"alerts_type"`
-	Alert_expression string `json:"alert_expression"`
-	Alert_severity string `json:"alert_severity"`
-	Metric_name string `json:"metric_name"`
-	Emails string `json:"emails"`
-	Status string `json:"status"`
-	Frequency float64 `json:"frequency"`
-	Last_updated string `json:"last_updated"`
+	Id               int64   `json:"id"`
+	Alert_name       string  `json:"alert_name"`
+	Created          string  `json:"created"`
+	Username         string  `json:"username"`
+	Token            string  `json:"token"`
+	Alerts_type      string  `json:"alerts_type"`
+	Alert_expression string  `json:"alert_expression"`
+	Alert_severity   string  `json:"alert_severity"`
+	Metric_name      string  `json:"metric_name"`
+	Emails           string  `json:"emails"`
+	Status           string  `json:"status"`
+	Frequency        float64 `json:"frequency"`
+	Last_updated     string  `json:"last_updated"`
 }
 
-func setAlertToUrlValues(alert Alert, data *url.Values) (errString string){
+func setAlertToUrlValues(alert Alert, data *url.Values) (errString string) {
 	if len(alert.Alert_name) > 0 {
 		(*data).Add("alert_name", alert.Alert_name)
 	} else {
@@ -172,7 +173,7 @@ func (lst *MetricList) UnmarshalJSON(js []byte) (err error) {
 // Zeus implements functions to send/receive log, send/receive metrics.
 // Constructing Zeus requires URL of Zeus rest api and user token.
 type Zeus struct {
-	ApiServ, Token string
+	ApiServ, OrganizationAndBucket, Token string
 }
 
 type postResponse struct {
@@ -185,40 +186,54 @@ func buildUrl(urls ...string) string {
 	return strings.Join(urls, "/") + "/"
 }
 
+func (zeus *Zeus) bucket(organization_and_bucket string) *Zeus {
+	zeus.OrganizationAndBucket = organization_and_bucket
+	return zeus
+}
+
 func (zeus *Zeus) request(method, urlStr string, data *url.Values) (
-body []byte, status int, err error) {
+	responseBody []byte, responseStatus int, err error) {
+	if zeus.OrganizationAndBucket == "" {
+		fmt.Println("Error: Please set bucket's name. ex) zeus.bucket(\"org1/bucket1\").GetLogs()")
+		return []byte{}, 0, err
+	}
+	organizationAndBucket := zeus.OrganizationAndBucket
+	zeus.OrganizationAndBucket = ""
+
 	if data == nil {
 		data = &url.Values{}
 	}
-	var resp *http.Response
-	if method == "POST" {
-		resp, err = http.PostForm(urlStr, *data)
-	} else if method == "GET" {
-		resp, err = http.Get(urlStr + "?" + data.Encode())
+	body := strings.NewReader(data.Encode())
+
+	var request *http.Request
+	if method == "GET" {
+		request, err = http.NewRequest("GET", urlStr+"?"+data.Encode(), nil)
+	} else if method == "POST" {
+		request, err = http.NewRequest("POST", urlStr, body)
 	} else if method == "PUT" {
-		req, err := http.NewRequest("PUT", urlStr, strings.NewReader(data.Encode()))
-		if err != nil {
-			return []byte{}, 0, err
-		}
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		resp, err = http.DefaultClient.Do(req)
+		request, err = http.NewRequest("PUT", urlStr, body)
+		request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	} else if method == "DELETE" {
-		req, err := http.NewRequest("DELETE", urlStr, strings.NewReader(data.Encode()))
-		if err != nil {
-			return []byte{}, 0, err
-		}
-		resp, err = http.DefaultClient.Do(req)
+		request, err = http.NewRequest("DELETE", urlStr, body)
 	}
+	if err != nil {
+		return []byte{}, 0, err
+	}
+	request.Header.Add("Authorization", "Bearer "+zeus.Token)
+	request.Header.Add("Bucket-Name", organizationAndBucket)
+
+	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		return []byte{}, 0, err
 	}
 
-	body, err = ioutil.ReadAll(resp.Body)
+	responseBody, err = ioutil.ReadAll(response.Body)
 	if err != nil {
 		return []byte{}, 0, err
 	}
-	status = resp.StatusCode
-	resp.Body.Close()
+
+	responseStatus = response.StatusCode
+	response.Body.Close()
 	return
 }
 
@@ -345,7 +360,7 @@ func (zeus *Zeus) DeleteAlert(id int64) (successful int, err error) {
 // worry, limit(10 by default) controls the up limit of number of logs
 // returned. Please use offset and limit to get the rest logs.
 func (zeus *Zeus) GetLogs(logName, field, pattern string, from, to int64,
-offset, limit int) (total int, logs LogList, err error) {
+	offset, limit int) (total int, logs LogList, err error) {
 	if len(zeus.Token) == 0 {
 		return 0, LogList{}, errors.New("API token is empty")
 	}

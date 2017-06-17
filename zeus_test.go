@@ -22,10 +22,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"strconv"
 	"testing"
 	"time"
-	"regexp"
 )
 
 func init() {
@@ -33,44 +33,49 @@ func init() {
 }
 
 func mock(expPath string, expParam *url.Values, code int, retBody string) (
-	*httptest.Server, *Zeus) {
+	*httptest.Server, *Zeus, string) {
+
+	organizationAndBucket := "org1/bucket1"
+	token := "goZeus"
+
 	server := httptest.NewServer(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			reqBody, _ := ioutil.ReadAll(r.Body)
+
+			if r.Header["Bucket-Name"][0] != "org1/bucket1" || r.Header["Authorization"][0] != ("Bearer "+token) {
+				w.WriteHeader(400)
+				fmt.Fprintln(w, retBody)
+				return
+			}
+
 			if r.Method == "GET" {
 				expPath += "?" + expParam.Encode()
-				// For golang 1.6.2
-				pathMatch, _ := regexp.MatchString(`/$`, r.RequestURI)
+				pathMatch, _ := regexp.MatchString(`/$`, r.RequestURI) // For golang 1.6.2
 				if pathMatch {
 					r.RequestURI += "?"
 				}
-				if (expPath != r.RequestURI) {
-					// fmt.Println("code 400: expPath", expPath)
-					// fmt.Println("code 400: r.RequestURI", r.RequestURI)
+				if expPath != r.RequestURI {
 					w.WriteHeader(400)
 				} else {
 					w.WriteHeader(code)
 				}
-			} else if (r.Method == "POST" || r.Method == "PUT" || r.Method == "DELETE") {
-				if (expPath != r.RequestURI) {
-					// fmt.Println("code 400: expPath", expPath)
-					// fmt.Println("code 400: r.RequestURI", r.RequestURI)
+			} else if r.Method == "POST" || r.Method == "PUT" || r.Method == "DELETE" {
+				if expPath != r.RequestURI {
 					w.WriteHeader(400)
 				} else if string(reqBody) != expParam.Encode() {
-					// fmt.Println("code 400 reqBody:", string(reqBody))
-					// fmt.Println("code 400 expParam:", (*expParam)["body"][0])
 					w.WriteHeader(400)
 				} else {
 					w.WriteHeader(code)
 				}
 			}
 			fmt.Fprintln(w, retBody)
+			return
 		}))
 
 	// Initialize a Zeus client
-	zeus := &Zeus{ApiServ: server.URL, Token: "goZeus"}
-	return server, zeus
+	zeus := &Zeus{ApiServ: server.URL, Token: token}
+	return server, zeus, organizationAndBucket
 }
 
 func randString(n int) string {
@@ -84,36 +89,36 @@ func randString(n int) string {
 
 func TestPostAlert(t *testing.T) {
 	alert := Alert{
-		Alert_name:	randString(5),
-		Username:	randString(5),
-		Token: "databucket",
-		Alerts_type: "metric",
+		Alert_name:       randString(5),
+		Username:         randString(5),
+		Token:            "databucket",
+		Alerts_type:      "metric",
 		Alert_expression: "cpu.value > 20",
-		Alert_severity: "S1",
-		Metric_name: "cpu.value",
-		Emails: "blah@blah.com",
-		Status: "active",
-		Frequency: 30.0,
+		Alert_severity:   "S1",
+		Metric_name:      "cpu.value",
+		Emails:           "blah@blah.com",
+		Status:           "active",
+		Frequency:        30.0,
 	}
 	data := make(url.Values)
 	setAlertToUrlValues(alert, &data)
-	server, zeus := mock("/alerts/goZeus/", &data, 201, `{"successful": 1}`)
+	server, zeus, bucket_name := mock("/alerts/goZeus/", &data, 201, `{"successful": 1}`)
 	defer server.Close()
 
 	token := zeus.Token
 	zeus.Token = ""
-	_, err := zeus.PostAlert(Alert{})
+	_, err := zeus.bucket(bucket_name).PostAlert(Alert{})
 	if err == nil {
 		t.Error("should fail on empty token")
 	}
 	zeus.Token = token
 
-	_, err = zeus.PostAlert(Alert{})
+	_, err = zeus.bucket(bucket_name).PostAlert(Alert{})
 	if err != nil {
 		t.Error("should fail on empty alert")
 	}
 
-	successful, err := zeus.PostAlert(alert)
+	successful, err := zeus.bucket(bucket_name).PostAlert(alert)
 	if err != nil {
 		t.Error("failed to post logs:", err)
 	}
@@ -124,16 +129,16 @@ func TestPostAlert(t *testing.T) {
 
 func TestZeusGetAlerts(t *testing.T) {
 	alert := Alert{
-		Alert_name:  randString(5),
-		Username:  randString(5),
-		Token: "databucket",
-		Alerts_type: "metric",
+		Alert_name:       randString(5),
+		Username:         randString(5),
+		Token:            "databucket",
+		Alerts_type:      "metric",
 		Alert_expression: "cpu.value > 20",
-		Alert_severity: "S1",
-		Metric_name: "cpu.value",
-		Emails: "blah@blah.com",
-		Status: "active",
-		Frequency: 30.0,
+		Alert_severity:   "S1",
+		Metric_name:      "cpu.value",
+		Emails:           "blah@blah.com",
+		Status:           "active",
+		Frequency:        30.0,
 	}
 	metric := ""
 	param := make(url.Values)
@@ -141,18 +146,18 @@ func TestZeusGetAlerts(t *testing.T) {
 		param.Add("metric", metric)
 	}
 	jsonStr, _ := json.Marshal([]Alert{alert})
-	server, zeus := mock("/alerts/goZeus/", &param, 200, string(jsonStr))
+	server, zeus, bucket_name := mock("/alerts/goZeus/", &param, 200, string(jsonStr))
 	defer server.Close()
 
 	token := zeus.Token
 	zeus.Token = ""
-	_, _, err := zeus.GetAlerts()
+	_, _, err := zeus.bucket(bucket_name).GetAlerts()
 	if err == nil {
 		t.Error("should fail on empty token")
 	}
 	zeus.Token = token
 
-	total, alerts, err := zeus.GetAlerts()
+	total, alerts, err := zeus.bucket(bucket_name).GetAlerts()
 	if err != nil {
 		t.Error("failed to retrieve alerts:", err)
 	}
@@ -163,36 +168,36 @@ func TestZeusGetAlerts(t *testing.T) {
 
 func TestPutAlert(t *testing.T) {
 	alert := Alert{
-		Alert_name:	randString(5),
-		Username:	randString(5),
-		Token: "databucket",
-		Alerts_type: "metric",
+		Alert_name:       randString(5),
+		Username:         randString(5),
+		Token:            "databucket",
+		Alerts_type:      "metric",
 		Alert_expression: "cpu.value > 20",
-		Alert_severity: "S1",
-		Metric_name: "cpu.value",
-		Emails: "blah@blah.com",
-		Status: "active",
-		Frequency: 30.0,
+		Alert_severity:   "S1",
+		Metric_name:      "cpu.value",
+		Emails:           "blah@blah.com",
+		Status:           "active",
+		Frequency:        30.0,
 	}
 	data := make(url.Values)
 	setAlertToUrlValues(alert, &data)
-	server, zeus := mock("/alerts/goZeus/1/", &data, 200, `{"successful": 1}`)
+	server, zeus, bucket_name := mock("/alerts/goZeus/1/", &data, 200, `{"successful": 1}`)
 	defer server.Close()
 
 	token := zeus.Token
 	zeus.Token = ""
-	_, err := zeus.PutAlert(1, Alert{})
+	_, err := zeus.bucket(bucket_name).PutAlert(1, Alert{})
 	if err == nil {
 		t.Error("should fail on empty token")
 	}
 	zeus.Token = token
 
-	_, err = zeus.PutAlert(1, Alert{})
+	_, err = zeus.bucket(bucket_name).PutAlert(1, Alert{})
 	if err != nil {
 		t.Error("should fail on empty alert")
 	}
 
-	successful, err := zeus.PutAlert(1, alert)
+	successful, err := zeus.bucket(bucket_name).PutAlert(1, alert)
 	if err != nil {
 		t.Error("failed to put alert:", err)
 	}
@@ -203,31 +208,31 @@ func TestPutAlert(t *testing.T) {
 
 func TestZeusGetAlert(t *testing.T) {
 	sample_alert := Alert{
-		Alert_name:  randString(5),
-		Username:  randString(5),
-		Token: "databucket",
-		Alerts_type: "metric",
+		Alert_name:       randString(5),
+		Username:         randString(5),
+		Token:            "databucket",
+		Alerts_type:      "metric",
 		Alert_expression: "cpu.value > 20",
-		Alert_severity: "S1",
-		Metric_name: "cpu.value",
-		Emails: "blah@blah.com",
-		Status: "active",
-		Frequency: 30.0,
+		Alert_severity:   "S1",
+		Metric_name:      "cpu.value",
+		Emails:           "blah@blah.com",
+		Status:           "active",
+		Frequency:        30.0,
 	}
 	param := make(url.Values)
 	jsonStr, _ := json.Marshal(sample_alert)
-	server, zeus := mock("/alerts/goZeus/1/", &param, 200, string(jsonStr))
+	server, zeus, bucket_name := mock("/alerts/goZeus/1/", &param, 200, string(jsonStr))
 	defer server.Close()
 
 	token := zeus.Token
 	zeus.Token = ""
-	_, err := zeus.GetAlert(1)
+	_, err := zeus.bucket(bucket_name).GetAlert(1)
 	if err == nil {
 		t.Error("should fail on empty token")
 	}
 	zeus.Token = token
 
-	alert, err := zeus.GetAlert(1)
+	alert, err := zeus.bucket(bucket_name).GetAlert(1)
 	if err != nil {
 		t.Error("failed to retrieve alert:", err)
 	}
@@ -238,19 +243,19 @@ func TestZeusGetAlert(t *testing.T) {
 
 func TestZeusDeleteAlert(t *testing.T) {
 	param := make(url.Values)
-	server, zeus := mock("/alerts/goZeus/1/", &param, 204, `{"successful": 1}`)
+	server, zeus, bucket_name := mock("/alerts/goZeus/1/", &param, 204, `{"successful": 1}`)
 
 	defer server.Close()
 
 	token := zeus.Token
 	zeus.Token = ""
-	_, err := zeus.DeleteAlert(1)
+	_, err := zeus.bucket(bucket_name).DeleteAlert(1)
 	if err == nil {
 		t.Error("should fail on empty token")
 	}
 	zeus.Token = token
 
-	successful, err := zeus.DeleteAlert(1)
+	successful, err := zeus.bucket(bucket_name).DeleteAlert(1)
 
 	if err != nil {
 		t.Error("failed to delete logs:", err)
@@ -260,8 +265,6 @@ func TestZeusDeleteAlert(t *testing.T) {
 	}
 }
 
-
-
 // Logs test
 func TestPostLogs(t *testing.T) {
 	logName := randString(5)
@@ -270,23 +273,23 @@ func TestPostLogs(t *testing.T) {
 
 	jsonStr, _ := json.Marshal(logs)
 	param := url.Values{"logs": {string(jsonStr)}}
-	server, zeus := mock("/logs/goZeus/"+logName+"/", &param, 200, `{"successful": 1}`)
+	server, zeus, bucket_name := mock("/logs/goZeus/"+logName+"/", &param, 200, `{"successful": 1}`)
 	defer server.Close()
 
 	token := zeus.Token
 	zeus.Token = ""
-	_, err := zeus.PostLogs(LogList{})
+	_, err := zeus.bucket(bucket_name).PostLogs(LogList{})
 	if err == nil {
 		t.Error("should fail on empty token")
 	}
 	zeus.Token = token
 
-	successful, err := zeus.PostLogs(LogList{})
+	successful, err := zeus.bucket(bucket_name).PostLogs(LogList{})
 	if err == nil {
 		t.Error("should fail on empty log")
 	}
 
-	successful, err = zeus.PostLogs(logs)
+	successful, err = zeus.bucket(bucket_name).PostLogs(logs)
 	if err != nil {
 		t.Error("failed to post logs:", err)
 	}
@@ -309,23 +312,23 @@ func TestGetLogs(t *testing.T) {
 		"limit":          {"10"}}
 	retBody := fmt.Sprintf("{\"total\": 1,\"result\": [{\"timestamp\": %d, \"message\":\"%s\"}]}",
 		timestamp, pattern)
-	server, zeus := mock("/logs/goZeus/", &param, 200, retBody)
+	server, zeus, bucket_name := mock("/logs/goZeus/", &param, 200, retBody)
 	defer server.Close()
 
 	token := zeus.Token
 	zeus.Token = ""
-	_, _, err := zeus.GetLogs("", "", "", 0, 0, 0, 0)
+	_, _, err := zeus.bucket(bucket_name).GetLogs("", "", "", 0, 0, 0, 0)
 	if err == nil {
 		t.Error("should fail on empty token")
 	}
 	zeus.Token = token
 
-	total, logs, err := zeus.GetLogs("", "", "", 0, 0, 0, 0)
+	total, logs, err := zeus.bucket(bucket_name).GetLogs("", "", "", 0, 0, 0, 0)
 	if err == nil {
 		t.Error("test should failed because of missing parameters")
 	}
 
-	total, logs, err = zeus.GetLogs(logName, "message", pattern, timestamp,
+	total, logs, err = zeus.bucket(bucket_name).GetLogs(logName, "message", pattern, timestamp,
 		timestamp+10, 0, 10)
 
 	if total != 1 || logs.Logs[0]["message"] != pattern {
@@ -348,23 +351,23 @@ func TestPostMetrics(t *testing.T) {
 
 	param := url.Values{"metrics": {string(jsonStr)}}
 	retBody := `{"successful":1}`
-	server, zeus := mock("/metrics/goZeus/"+metricName+"/", &param, 200, retBody)
+	server, zeus, bucket_name := mock("/metrics/goZeus/"+metricName+"/", &param, 200, retBody)
 	defer server.Close()
 
 	token := zeus.Token
 	zeus.Token = ""
-	_, err := zeus.PostMetrics(MetricList{})
+	_, err := zeus.bucket(bucket_name).PostMetrics(MetricList{})
 	if err == nil {
 		t.Error("should fail on empty token")
 	}
 	zeus.Token = token
 
-	successful, err := zeus.PostMetrics(MetricList{})
+	successful, err := zeus.bucket(bucket_name).PostMetrics(MetricList{})
 	if err == nil {
 		t.Error("should fail on empty metrics")
 	}
 
-	successful, err = zeus.PostMetrics(metrics)
+	successful, err = zeus.bucket(bucket_name).PostMetrics(metrics)
 	if err != nil || successful != 1 {
 		t.Errorf("failed to post metrics, %d successful", successful)
 	}
@@ -378,18 +381,18 @@ func TestGetMetricNames(t *testing.T) {
 		"offset":      {"1"},
 		"limit":       {"1024"}}
 	retBody := `["Harry", "Potter"]`
-	server, zeus := mock("/metrics/goZeus/_names/", &param, 200, retBody)
+	server, zeus, bucket_name := mock("/metrics/goZeus/_names/", &param, 200, retBody)
 	defer server.Close()
 
 	token := zeus.Token
 	zeus.Token = ""
-	_, err := zeus.GetMetricNames(metricName, 1, 1024)
+	_, err := zeus.bucket(bucket_name).GetMetricNames(metricName, 1, 1024)
 	if err == nil {
 		t.Error("should fail on empty token")
 	}
 	zeus.Token = token
 
-	names, err := zeus.GetMetricNames(metricName, 1, 1024)
+	names, err := zeus.bucket(bucket_name).GetMetricNames(metricName, 1, 1024)
 	if err != nil {
 		t.Error("failed to get metrics' name:", err)
 	}
@@ -420,18 +423,18 @@ func TestGetMetricValues(t *testing.T) {
 		"filter_condition":    {"value>10"},
 		"limit":               {"1024"}}
 	retBody := `[{"points": [[1430355869.123,144740003,20.0]],"name": "Jon.Snow","columns": ["time","sequence_number","age"]}]`
-	server, zeus := mock("/metrics/goZeus/_values/", &param, 200, retBody)
+	server, zeus, bucket_name := mock("/metrics/goZeus/_values/", &param, 200, retBody)
 	defer server.Close()
 
 	token := zeus.Token
 	zeus.Token = ""
-	_, err := zeus.GetMetricValues(metricName, "max", "age", "1s", timestamp-10.0, timestamp, "value>10", 0, 1024)
+	_, err := zeus.bucket(bucket_name).GetMetricValues(metricName, "max", "age", "1s", timestamp-10.0, timestamp, "value>10", 0, 1024)
 	if err == nil {
 		t.Error("should fail on empty token")
 	}
 	zeus.Token = token
 
-	metrics, err := zeus.GetMetricValues(metricName, "max", "age", "1s", timestamp-10.0, timestamp, "value>10", 0, 1024)
+	metrics, err := zeus.bucket(bucket_name).GetMetricValues(metricName, "max", "age", "1s", timestamp-10.0, timestamp, "value>10", 0, 1024)
 	if err != nil {
 		t.Error("failed to get metric values:", err)
 	}
@@ -458,22 +461,22 @@ func TestDeleteMetrics(t *testing.T) {
 	metricName := randString(5)
 	param := url.Values{}
 	retBody := `["Metric deletion successful"]`
-	server, zeus := mock("/metrics/goZeus/"+metricName+"/", &param, 200, retBody)
+	server, zeus, bucket_name := mock("/metrics/goZeus/"+metricName+"/", &param, 200, retBody)
 	defer server.Close()
 
 	token := zeus.Token
 	zeus.Token = ""
-	_, err := zeus.DeleteMetrics("")
+	_, err := zeus.bucket(bucket_name).DeleteMetrics("")
 	if err == nil {
 		t.Error("should fail on empty token")
 	}
 	zeus.Token = token
 
-	successful, err := zeus.DeleteMetrics("")
+	successful, err := zeus.bucket(bucket_name).DeleteMetrics("")
 	if successful != false || err == nil {
 		t.Error("should fail on empty metricName")
 	}
-	successful, err = zeus.DeleteMetrics(metricName)
+	successful, err = zeus.bucket(bucket_name).DeleteMetrics(metricName)
 	if err != nil || successful != true {
 		t.Error("failed to delete on series")
 	}
@@ -481,18 +484,18 @@ func TestDeleteMetrics(t *testing.T) {
 
 func TestZeusGetTrigalert(t *testing.T) {
 	param := make(url.Values)
-	server, zeus := mock("/trigalerts/goZeus/", &param, 200, `{"successful": 1}`)
+	server, zeus, bucket_name := mock("/trigalerts/goZeus/", &param, 200, `{"successful": 1}`)
 	defer server.Close()
 
 	token := zeus.Token
 	zeus.Token = ""
-	_, err := zeus.GetTrigalert()
+	_, err := zeus.bucket(bucket_name).GetTrigalert()
 	if err == nil {
 		t.Error("should fail on empty token")
 	}
 	zeus.Token = token
 
-	trigalert, err := zeus.GetTrigalert()
+	trigalert, err := zeus.bucket(bucket_name).GetTrigalert()
 	if err != nil {
 		t.Error("failed to retrieve trigalert:", err)
 	}
@@ -504,18 +507,18 @@ func TestZeusGetTrigalert(t *testing.T) {
 
 func TestZeusGetTrigalertLast24(t *testing.T) {
 	param := make(url.Values)
-	server, zeus := mock("/trigalerts/goZeus/last24/", &param, 200, `{"successful": 1}`)
+	server, zeus, bucket_name := mock("/trigalerts/goZeus/last24/", &param, 200, `{"successful": 1}`)
 	defer server.Close()
 
 	token := zeus.Token
 	zeus.Token = ""
-	_, err := zeus.GetTrigalertLast24()
+	_, err := zeus.bucket(bucket_name).GetTrigalertLast24()
 	if err == nil {
 		t.Error("should fail on empty token")
 	}
 	zeus.Token = token
 
-	trigalert, err := zeus.GetTrigalertLast24()
+	trigalert, err := zeus.bucket(bucket_name).GetTrigalertLast24()
 	if err != nil {
 		t.Error("failed to retrieve trigalert_last24:", err)
 	}
